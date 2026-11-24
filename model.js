@@ -1,16 +1,71 @@
 /* ================== МОДЕЛЬ ==================
    Чистые функции прогноза: не читают и не пишут DOM, работают с DB.
    Отдельный слой даёт возможность автотестировать модель без браузера. */
-function lambdas(hi, ai){
+function lambdas(hi, ai, settings){
+  const s = settings || DB.settings;
   const H = DB.teams[hi], A = DB.teams[ai];
   // средняя атака берётся по дивизионам участвующих команд — так РПЛ и ФНЛ не искажают друг друга
   const divs = [...new Set([divOf(H), divOf(A)])];
   const pool = DB.teams.filter(t => divs.includes(divOf(t)));
   const L = pool.reduce((s,t)=>s+t.xgf, 0) / pool.length;
    const fh = adaptFactor(H), fa = adaptFactor(A);
-  const lh = Math.max(0.05, H.xgf * fh.atk * A.xga * fa.def / L * DB.settings.homeBoost * H.mod);
-  const la = Math.max(0.05, A.xgf * fa.atk * H.xga * fh.def / L * DB.settings.awayPenalty * A.mod);
-  return {lh, la};
+
+  // динамическая сила (Этап 3): если включена и есть матчи — подставляем атаку/оборону
+  // с учётом дом/гость и класса соперника; иначе — статичные xG из базы
+  let Hatk = H.xgf, Hdef = H.xga, Aatk = A.xgf, Adef = A.xga;
+  if(typeof USE_DYNAMIC !== 'undefined' && USE_DYNAMIC){
+    const dH = dynXg(hi, true), dA = dynXg(ai, false);
+    if(dH){ Hatk = dH.atk; Hdef = dH.def; }
+    if(dA){ Aatk = dA.atk; Adef = dA.def; }
+  }
+
+  const lh = Math.max(0.05, Hatk * fh.atk * Adef * fa.def / L * s.homeBoost * H.mod);
+  const la = Math.max(0.05, Aatk * fa.atk * Hdef * fh.def / L * s.awayPenalty * A.mod);
+  return {lh: applySquad(lh, hi), la: applySquad(la, ai)};
+}
+
+/* ================== СИЛА СОСТАВА (Этап 4) ==================
+   Сравниваем фактический состав команды (из lineup) с «усреднённой» командой той же
+   формы. Фактический = сумма рейтингов игроков (PLAYER_RATINGS или POS_BASE по позиции).
+   Базовый = сумма POS_BASE по тем же позициям. Коррекция ~1: если у команды звёзды —
+   чуть выше 1, если слабые/неизвестные — ниже 1. Флаг USE_SQUAD включает/выключает. */
+let USE_SQUAD = false;
+
+function playerRating(teamName, playerName, posTag){
+  // явный рейтинг игрока, если есть
+  const byTeam = (PLAYER_RATINGS && PLAYER_RATINGS[teamName]) || {};
+  if(playerName && byTeam[playerName] !== undefined) return byTeam[playerName];
+  // иначе базовая шкала по позиции; для ФНЛ — заниженная POS_BASE_FNL
+  const baseMap = (POS_BASE_FNL && divOf(DB.teams.find(t=>t.name===teamName)||{}) === 'fnl') ? POS_BASE_FNL : POS_BASE;
+  return baseMap[posTag] !== undefined ? baseMap[posTag] : 70;
+}
+
+// коррекция состава {corr}: фактическая сила 11 / базовая сила того же формата
+function squadCorrection(teamIdx){
+  const t = DB.teams[teamIdx];
+  const rows = parseLineup(t.lineup);
+  const isFnl = divOf(t) === 'fnl';
+  const baseMap = isFnl ? POS_BASE_FNL : POS_BASE;
+  let actual = 0, base = 0;
+  rows.forEach(r => {
+    const tag = (r.label||'').toUpperCase().trim();
+    // вратарей не считаем в силу атакующей коррекции (знак мало влияет) — но учитываем для баланса
+    r.names.forEach(nm => {
+      actual += playerRating(t.name, nm, tag);
+      base += baseMap[tag] !== undefined ? baseMap[tag] : 70;
+    });
+  });
+  if(!base) return 1;
+  return actual / base;
+}
+
+// применить к λ: сплющиваем коррекцию к единице, чтобы не доминировала над xG
+function applySquad(lambda, teamIdx){
+  if(!USE_SQUAD) return lambda;
+  const c = squadCorrection(teamIdx);
+  // damping: sqrt, чтобы коррекция ~0.9-1.1 не выстреливала в λ
+  const damped = Math.sqrt(c);
+  return lambda * damped;
 }
 
 const MAXG = 10;
@@ -19,9 +74,9 @@ function poissonArr(l){
   for(let k=0;k<=MAXG;k++){ a.push(p); p *= l/(k+1); }
   return a;
 }
-function matchProbs(lh, la){
+function matchProbs(lh, la, settings){
   const ph = poissonArr(lh), pa = poissonArr(la);
-  const rho = DB.settings.dixonColes ?? -0.08;
+  const rho = (settings || DB.settings).dixonColes ?? -0.08;
   // корректирующий коэффициент Диксона–Коулза для низких счетов
   const dc = (i, j) => {
     if(i===0 && j===0) return 1 - lh*la*rho;
