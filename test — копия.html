@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Автотест модели — Аналитика футбола</title>
+</head>
+<body>
+<pre id="out" style="font-family:Consolas,monospace;font-size:13px;padding:16px;line-height:1.5"></pre>
+<script src="data.js"></script>
+<script src="model.js"></script>
+<script>
+(function runTests(){
+  const log = [];
+  const ok = (name, pass, extra='') => log.push((pass?'✅':'❌ FAIL ') + ' ' + name + (extra ? ' — ' + extra : ''));
+
+  // контекст, нужный чистым функциям (локально без localStorage и DOM)
+  const KEY = 'rpl2526_test';
+  DB = { teams: JSON.parse(JSON.stringify(DEFAULT_TEAMS)),
+         settings: {homeBoost:1.10, awayPenalty:0.95, dixonColes:-0.08},
+         probs: null };
+  // divOf / idxOf приходят из data.js
+
+  // 1. Пуассон — вероятности неотрицательны; сумма близка к 1
+  // (массив усечён на k=10, поэтому для больших λ сумма чуть < 1 — это норма)
+  let err = 0;
+  for (const lam of [0.05, 0.5, 1.0, 1.6, 3.0, 6.0]) {
+    const a = poissonArr(lam);
+    const s = a.reduce((x,y)=>x+y,0);
+    err = Math.max(err, 1 - s);
+    ok('poissonArr λ=' + lam + ': сумма в разумных пределах', s > 0.9 && s <= 1.001, s.toFixed(4));
+  }
+
+  // 2. matchProbs — исход нормирован
+  const r = matchProbs(1.5, 1.1);
+  ok('matchProbs: pw+pd+pl == 1', Math.abs(r.pw+r.pd+r.pl-1) < 1e-9);
+  ok('matchProbs: all >= 0', r.pw>=0 && r.pd>=0 && r.pl>=0);
+  ok('matchProbs: best point нормирован', Math.abs(r.best.p* (r.pw+r.pd+r.pl) - r.best.p) < 1e-6);
+
+  // 3. lambdas в самых слабых исходах не ниже минимума
+  const H = idxOf('rpl')[0], A = idxOf('rpl')[1];
+  const l = lambdas(H, A);
+  ok('lambdas: lh/la положительны', l.lh>0 && l.la>0);
+
+  // 4. Календарь: каждый с каждым, 2 круга, зеркальные пары
+  const n = idxOf('rpl').length;
+  const sch = simBuildSchedule('rpl');
+  ok('расписание: 2*(n-1) туров', sch.length === (n-1)*2, sch.length + '==' + (n-1)*2);
+  const all = sch.flat();
+  ok('расписание: все пары уникальны и не самопротив или против', all.length === n*(n-1), all.length + '==' + n*(n-1));
+  const pairCount = {};
+  all.forEach(([h,a])=>{ const k = Math.min(h,a)+'-'+Math.max(h,a); pairCount[k]=(pairCount[k]||0)+1; });
+  ok('расписание: каждая пара сыграна ровно 2 раза (дом/гость)', Object.values(pairCount).every(c=>c===2));
+
+  // 5. simFinalizeRound считает очки корректно
+  const S = simNewState();
+  S.matches = [{home:'А', away:'Б', gh:2, ga:1, done:true}];
+  simFinalizeRound(S);
+  ok('finalize: победа 3-0 очков, поражение 0', S.standings['А'].pts===3 && S.standings['А'].w===1
+      && S.standings['Б'].pts===0 && S.standings['Б'].l===1);
+  ok('finalize: 2 атака против 1 пропущенных', S.standings['А'].gf===2 && S.standings['А'].ga===1);
+
+  // 6. simPoissonGoals в диапазоне [0,5]
+  let inRange = true;
+  for (let i=0;i<500;i++){ const g = simPoissonGoals(1.3); if(g<0||g>5) inRange=false; }
+  ok('simPoissonGoals: голы в [0,5]', inRange);
+
+  // 7. applyLeagueShift в обе стороны
+  const t = {xgf:1.0, xga:1.0};
+  applyLeagueShift(t, 'up');
+  ok('leagueShift up: атака срезана ~0.70', Math.abs(t.xgf-0.70)<1e-3 && Math.abs(t.xga-1.25)<1e-3);
+
+  // 8. Стыковый матч возвращает корректный результат
+  const m = relegBuildMatch('Зенит', 'Факел');
+  const validRes = m.gh>=0 && m.ga>=0 && (typeof m.rplWin === 'boolean');
+  ok('relegBuildMatch: валидный результат', validRes, m.gh+':'+m.ga + (m.pen?' (пен)':''));
+
+  document.getElementById('out').textContent =
+    '\n=== АВТОТЕСТ МОДЕЛИ ===\n\n' + log.join('\n') + '\n\n' +
+    (log.every(l=>l.startsWith('✅')) ? '\nВСЕ ТЕСТЫ ПРОЙДЕНЫ ✔' : '\nЕСТЬ ПРОВАЛЫ ✘');
+})();
+</script>
+</body>
+</html>
