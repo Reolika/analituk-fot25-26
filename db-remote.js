@@ -107,6 +107,22 @@ async function remoteAddMatch(m){
   return Array.isArray(data) ? data[0] : data;
 }
 
+async function remoteAddMatches(list){
+  if(!remoteConfigured()) throw new Error('Бэкенд не настроен');
+  if(!REMOTE.session) throw new Error('Требуется вход администратора');
+  if(!Array.isArray(list) || !list.length) return true;
+  const res = await fetch(REMOTE.url + '/rest/v1/matches', {
+    method: 'POST',
+    headers: Object.assign(remoteHeaders(true), { 'Prefer': 'return=minimal' }),
+    body: JSON.stringify(list)
+  });
+  if(!res.ok){
+    const data = await res.json().catch(() => ({}));
+    throw new Error((data.message || data.hint || 'Пакетная запись не удалась') + ' (' + res.status + ')');
+  }
+  return true;
+}
+
 async function remoteDeleteMatch(id){
   if(!remoteConfigured()) throw new Error('Бэкенд не настроен');
   if(!REMOTE.session) throw new Error('Требуется вход администратора');

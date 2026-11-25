@@ -625,6 +625,13 @@ td,th{font-variant-numeric:tabular-nums}
       <button class="btn" id="adminAdd">Добавить матч</button>
       <div id="adminOut" class="note"></div>
     </div>
+    <div class="card" id="adminBulkCard">
+      <h3>Массовый импорт матчей</h3>
+      <p class="note">По одной строке на матч: <b>Домашняя;Гостевая;голы;голы;тур</b>. Разделитель — точка с запятой, запятая или табуляция. Уже существующие матчи пропускаются.</p>
+      <textarea id="aBulk" style="min-height:180px" placeholder="Урал;Торпедо;0;1;1"></textarea>
+      <button class="btn" id="adminBulkAdd" type="button">Импортировать</button>
+      <div id="adminBulkOut" class="note"></div>
+    </div>
     <div class="card">
       <h3>Матчи в облаке</h3>
       <div id="adminList"></div>
@@ -1772,9 +1779,10 @@ async function renderAdmin(){
   const configured = remoteConfigured();
   const email = remoteUserEmail();
   const isAdmin = !!(email && AUTH_IS_ADMIN);
-  const loginCard = $('#adminLoginCard'), addCard = $('#adminAddCard');
+  const loginCard = $('#adminLoginCard'), addCard = $('#adminAddCard'), bulkCard = $('#adminBulkCard');
   if(loginCard) loginCard.style.display = configured ? '' : 'none';
   if(addCard) addCard.style.display = (configured && isAdmin) ? '' : 'none';
+  if(bulkCard) bulkCard.style.display = (configured && isAdmin) ? '' : 'none';
   if(!configured){
     adminStatus('Бэкенд не настроен: заполните SUPABASE_URL и SUPABASE_ANON_KEY в config.js. Пока работает локальный режим (matches.js + localStorage).');
   } else if(!email){
@@ -1834,6 +1842,48 @@ function bindAdmin(){
     await remoteMergeMatches();
     renderMetrics(); renderHistory(); renderPredictions();
     await renderAdmin();
+  };
+  if($('#adminBulkAdd')) $('#adminBulkAdd').onclick = async () => {
+    const out = $('#adminBulkOut');
+    const raw = ($('#aBulk').value || '').trim();
+    if(!raw){ if(out) out.textContent = 'Вставьте строки для импорта.'; return; }
+    const names = new Set(DB.teams.map(t => t.name));
+    const rows = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const items = [], bad = [], unknown = new Set();
+    rows.forEach(line => {
+      const p = line.split(/[;\t,]+/).map(s => s.trim());
+      if(p.length < 5){ bad.push(line); return; }
+      const h = p[0], a = p[1], gh = Number(p[2]), ga = Number(p[3]), r = Number(p[4]);
+      if(!names.has(h)) unknown.add(h);
+      if(!names.has(a)) unknown.add(a);
+      if(!(Number.isInteger(gh) && gh >= 0 && gh <= 20 && Number.isInteger(ga) && ga >= 0 && ga <= 20 && Number.isInteger(r) && r >= 1)){ bad.push(line); return; }
+      if(h === a){ bad.push(line); return; }
+      items.push({ home: h, away: a, gh, ga, round: r });
+    });
+    if(out) out.textContent = 'Проверяю базу…';
+    try{
+      const existing = await remoteLoadMatches();
+      const seen = new Set(existing.map(m => m.home + '|' + m.away + '|' + m.round));
+      const fresh = [];
+      let skipped = 0;
+      items.forEach(m => {
+        const k = m.home + '|' + m.away + '|' + m.round;
+        if(seen.has(k)){ skipped++; return; }
+        seen.add(k);
+        fresh.push(m);
+      });
+      if(fresh.length) await remoteAddMatches(fresh);
+      await remoteMergeMatches();
+      renderMetrics(); renderHistory(); renderPredictions();
+      await renderAdmin();
+      if(out){
+        out.textContent = 'Добавлено: ' + fresh.length + '. Пропущено дублей: ' + skipped + '. Ошибочных строк: ' + bad.length +
+          (unknown.size ? '. Неизвестные команды: ' + [...unknown].join(', ') : '');
+      }
+      if(fresh.length) $('#aBulk').value = '';
+    }catch(e){
+      if(out) out.textContent = 'Ошибка импорта: ' + (e.message || e);
+    }
   };
   const adminNav = document.querySelector('#drawerMenu button[data-tab="tab-admin"]');
   if(adminNav) adminNav.addEventListener('click', () => { renderAdmin(); });
