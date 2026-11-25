@@ -241,6 +241,9 @@ td,th{font-variant-numeric:tabular-nums}
 .bar{border-radius:9px;box-shadow:inset 0 1px 2px rgba(11,31,58,.16)}
 .bar div:first-child{border-radius:9px 0 0 9px}
 .bar div:last-child{border-radius:0 9px 9px 0}
+.notice-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:9999;
+  background:#8a0f14;color:#fff;padding:12px 18px;border-radius:10px;font-size:13px;
+  box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:90vw}
 
 </style>
 
@@ -496,13 +499,22 @@ function loadDB(){
       return d;
     }
     // невалидные/устаревшие данные — сбрасываем, но предупреждаем
-    if(d) console.warn('Аналитика РПЛ: сохранённая база некорректна (ожидалось 34 команды) — сброс к исходным.');
-  }catch(e){ console.warn('Аналитика РПЛ: не удалось прочитать базу — сброс к исходным.', e); }
+    if(d){ window.__dbWasReset = true; console.warn('Аналитика РПЛ: сохранённая база некорректна (ожидалось 34 команды) — сброс к исходным.'); }
+  }catch(e){ window.__dbWasReset = true; console.warn('Аналитика РПЛ: не удалось прочитать базу — сброс к исходным.', e); }
   return {teams: JSON.parse(JSON.stringify(DEFAULT_TEAMS)),
         settings:{homeBoost:1.10, awayPenalty:0.95, dixonColes:-0.08}, probs:null};
 }
 let DB = loadDB();
 function saveDB(){ localStorage.setItem(KEY, JSON.stringify(DB)); }
+function showDbResetNotice(){
+  if(!window.__dbWasReset) return;
+  window.__dbWasReset = false;
+  const d = document.createElement('div');
+  d.className = 'notice-toast';
+  d.textContent = 'Сохранённая база была повреждена и сброшена к исходной.';
+  document.body.appendChild(d);
+  setTimeout(()=>d.remove(), 8000);
+}
 
 /* ================== ВКЛАДКИ ================== */
 document.querySelectorAll('nav button').forEach(b=>{
@@ -526,8 +538,11 @@ function calcRun(){
   if(hi === ai){ out.innerHTML = '<p>Выберите две разные команды.</p>'; return; }
   const H = DB.teams[hi], A = DB.teams[ai];
   const L0 = lambdas(hi, ai);
-  const oh = parseFloat($('#ovH').value), oa = parseFloat($('#ovA').value);
-  const r = matchProbs(isNaN(oh)?L0.lh:oh, isNaN(oa)?L0.la:oa);
+  const rawH = parseFloat($('#ovH').value), rawA = parseFloat($('#ovA').value);
+  const clampL = (v, fb) => isFinite(v) ? Math.min(5, Math.max(0.01, v)) : fb;
+  const oh = clampL(rawH, L0.lh), oa = clampL(rawA, L0.la);
+  const wasClamped = (isFinite(rawH) && (rawH < 0.01 || rawH > 5)) || (isFinite(rawA) && (rawA < 0.01 || rawA > 5));
+  const r = matchProbs(oh, oa);
 
   let mx = 0, mi = 0, mj = 0;
   for(let i=0;i<=5;i++) for(let j=0;j<=5;j++){
@@ -567,6 +582,7 @@ function calcRun(){
       <div style="width:${r.pd*100}%;background:#9aa5b4"></div>
       <div style="width:${r.pl*100}%;background:${esc(A.color||'#0b1f3a')}"></div>
     </div>
+    ${wasClamped ? '<p class="note" style="color:var(--amber)">Ручные λ ограничены допустимым диапазоном 0.01–5.</p>' : ''}
     <p class="note">λ хозяев: <b>${r.lh.toFixed(2)}</b> · λ гостей: <b>${r.la.toFixed(2)}</b></p>
     <div class="tiles">
       <div class="tile"><div class="t-label">Больше 2.5 гола</div><div class="t-value">${pct(r.over25)}</div></div>
@@ -586,13 +602,24 @@ function loadForm(i){
 }
 function saveTeam(){
   const i = +$('#teamSel').value, t = DB.teams[i];
-  t.name = $('#tName').value.trim() || t.name;
+  const name = $('#tName').value.trim();
+  const xgf = parseFloat($('#tXgf').value);
+  const xga = parseFloat($('#tXga').value);
+  const modRaw = $('#tMod').value.trim();
+  const mod = modRaw === '' ? 1 : parseFloat(modRaw);
+  const color = $('#tColor').value.trim();
+  if(!name){ alert('Название команды не может быть пустым.'); return; }
+  if(!(isFinite(xgf) && xgf >= 0 && xgf <= 10)){ alert('xG за: введите число от 0 до 10.'); return; }
+  if(!(isFinite(xga) && xga >= 0 && xga <= 10)){ alert('xG против: введите число от 0 до 10.'); return; }
+  if(!(isFinite(mod) && mod >= 0.5 && mod <= 1.5)){ alert('Модификатор состава: число от 0.5 до 1.5.'); return; }
+  if(color && !/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(color)){ alert('Цвет укажите в HEX, например #1e5aa8.'); return; }
+  t.name = name;
   t.coach = $('#tCoach').value.trim();
   t.formation = $('#tFormation').value.trim();
-  t.color = $('#tColor').value.trim() || t.color;
-  t.xgf = parseFloat($('#tXgf').value) || 0;
-  t.xga = parseFloat($('#tXga').value) || 0;
-  t.mod = parseFloat($('#tMod').value) || 1;
+  t.color = color || t.color;
+  t.xgf = xgf;
+  t.xga = xga;
+  t.mod = mod;
   t.tactic = $('#tTactic').value.trim();
   t.lineup = $('#tLineup').value;
   saveDB(); DB.probs = null; refreshAll();
@@ -1322,11 +1349,16 @@ function renderHistory(){
 function bindValidation(){
   if($('#vAdd')) $('#vAdd').onclick = () => {
     const h = +$('#vHome').value, a = +$('#vAway').value;
-    const gh = +$('#vGh').value, ga = +$('#vGa').value, r = +$('#vRound').value;
-    if(DB.teams[h] && DB.teams[a] && (gh>=0) && (ga>=0)){
-      addHistoryMatch(DB.teams[h].name, DB.teams[a].name, gh, ga, r);
-      saveHistory(); renderMetrics(); renderHistory();
-    } else { alert('Некорректные данные матча'); }
+    const ghRaw = $('#vGh').value.trim(), gaRaw = $('#vGa').value.trim(), rRaw = $('#vRound').value.trim();
+    const gh = +ghRaw, ga = +gaRaw, r = +rRaw;
+    if(!(DB.teams[h] && DB.teams[a])){ alert('Выберите команды из базы.'); return; }
+    if(h === a){ alert('Домашняя и гостевая команды должны различаться.'); return; }
+    if(!(ghRaw !== '' && Number.isInteger(gh) && gh >= 0 && gh <= 20)){ alert('Голы хозяев: целое число от 0 до 20.'); return; }
+    if(!(gaRaw !== '' && Number.isInteger(ga) && ga >= 0 && ga <= 20)){ alert('Голы гостей: целое число от 0 до 20.'); return; }
+    if(!(rRaw !== '' && Number.isInteger(r) && r >= 1)){ alert('Укажите тур — целое число от 1.'); return; }
+    const res = addHistoryMatch(DB.teams[h].name, DB.teams[a].name, gh, ga, r);
+    saveHistory(); renderMetrics(); renderHistory();
+    if(res && res.ok === false) alert(res.msg || 'Матч не добавлен.');
   };
   if($('#vImport')) $('#vImport').onclick = () => {
     const csv = $('#vCsv'); csv.style.display = csv.style.display==='none' ? 'block' : 'none';
@@ -1369,6 +1401,7 @@ function refreshAll(){
 fillVSel(); toggleView(); renderMetrics(); renderHistory();
 }
 refreshAll();
+showDbResetNotice();
 
 /* ================== ТЕМА: светлая / тёмная ================== */
 (function(){

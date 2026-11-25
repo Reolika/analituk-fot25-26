@@ -1,0 +1,21 @@
+# служебные файлы Windows/macOS
+Thumbs.db
+.DS_Store
+
+# черновики и копии прототипов — НЕ публикуем на GitHub Pages
+prototype3.0.html
+prototype4.0.html
+prototype5.0.html
+rpl_analytics_v3 — копия.html
+rpl_analytics_v3 — копия (2).html
+rpl_analytics_v3 — копия (3).html
+rpl_analytics_v3 — копия (4).html
+аналитика РПЛ-новая версия — копия.html
+аналитика с симуляцией сезона.html
+ошибка стыков.html
+сайт-мобильная версия.html
+calc.html
+_orig_style.html
+
+# текстовые данные, если не нужны на сайте
+*.txt
