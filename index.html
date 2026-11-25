@@ -14,6 +14,9 @@
   --teamcard-bg:#ffffff;--teamcard-text:#1d2630;--teamcard-border:#dfe6d9;
   --scores-th-bg:#1b2a1f;--scores-th-color:#dfe9db;--scores-cell:rgba(255,255,255,.05);
   --bar-bg:#223426;--hl-text:#ffd9dc;--on-accent:#ffffff;
+  --src-shared-bg:rgba(42,125,224,.22);--src-shared-fg:#9cc7ff;
+  --src-local-bg:rgba(22,163,74,.22);--src-local-fg:#8ee6b0;
+  --chart-track:rgba(255,255,255,.06);
   --shadow:0 1px 2px rgba(0,0,0,.35),0 12px 28px rgba(0,0,0,.35);
   --shadow-md:0 2px 6px rgba(0,0,0,.35),0 10px 28px rgba(0,0,0,.4);
   --focus:0 0 0 3px rgba(74,140,90,.35)}
@@ -25,6 +28,8 @@ html[data-theme="light"]{
   --teamcard-bg:#f7faf4;--teamcard-text:#1d2630;--teamcard-border:#e2e9dc;
   --scores-th-bg:#e9f2e4;--scores-th-color:#0b1f3a;--scores-cell:#f6f8fc;
   --bar-bg:#e4e9f1;--hl-text:#8a0f14;--on-accent:#0b1f3a;
+  --src-shared-fg:#1f5fa8;--src-local-fg:#0e7a37;
+  --chart-track:rgba(11,31,58,.06);
   --shadow:0 1px 2px rgba(11,31,58,.08),0 12px 28px rgba(11,31,58,.10);
   --shadow-md:0 2px 6px rgba(11,31,58,.10),0 10px 28px rgba(11,31,58,.10);
   --focus:0 0 0 3px rgba(42,125,224,.2)}
@@ -135,8 +140,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#7aa2d8;
   box-shadow:var(--focus)}
 textarea{min-height:70px;resize:vertical}
 .btn{background:linear-gradient(135deg,var(--red),var(--red2));color:#fff;border:0;
-  padding:11px 20px;border-radius:8px;font-weight:700;cursor:pointer;
-  text-transform:uppercase;font-size:13px;letter-spacing:.5px;margin:14px 8px 0 0;
+  padding:8px 14px;border-radius:8px;font-weight:700;cursor:pointer;
+  text-transform:uppercase;font-size:12px;letter-spacing:.4px;margin:10px 6px 0 0;
   box-shadow:0 2px 6px rgba(215,20,26,.35);transition:transform .15s,box-shadow .15s}
 .btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(215,20,26,.4)}
 .btn:active{transform:translateY(0)}
@@ -221,6 +226,8 @@ tbody tr:hover td{background:var(--hover)}
 .sm-log{font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:8px;min-height:18px}
 .ic-sim{background:linear-gradient(135deg,#e0a400,#8a5a00)}
 .ic-val{background:linear-gradient(135deg,#7c3aed,#4c1d95)}
+.ic-set{background:linear-gradient(135deg,#64748b,#1f2937)}
+.ic-admin{background:linear-gradient(135deg,#0ea5e9,#0c4a6e)}
 .sim-two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media (max-width:720px){.sim-two{grid-template-columns:1fr}}
 .tbl-up td{background:rgba(34,197,94,.14) !important}
@@ -244,7 +251,104 @@ td,th{font-variant-numeric:tabular-nums}
 .notice-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:9999;
   background:#8a0f14;color:#fff;padding:12px 18px;border-radius:10px;font-size:13px;
   box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:90vw}
+.src-badge{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.3px;
+  padding:2px 8px;border-radius:999px;text-transform:uppercase}
+.src-shared{background:var(--src-shared-bg);color:var(--src-shared-fg)}
+.src-local{background:var(--src-local-bg);color:var(--src-local-fg)}
+.toggle-row{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));margin-top:8px}
+.toggle{display:flex;gap:10px;align-items:flex-start;margin:0;padding:10px 12px;cursor:pointer;
+  border:1px solid var(--line);border-radius:12px;background:var(--surface2)}
+.toggle input{width:16px;height:16px;flex:0 0 16px;margin-top:2px;accent-color:var(--green)}
+.toggle span{font-size:13px;font-weight:600;color:var(--text)}
+.toggle small{display:block;margin-top:2px;font-size:11px;font-weight:400;color:var(--muted)}
+.metric-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:10px 0 4px}
+.metric{background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.m-label{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700}
+.m-value{font-size:22px;font-weight:800;color:var(--title);font-variant-numeric:tabular-nums;margin-top:2px}
+.rel-chart{display:flex;align-items:flex-end;gap:10px;margin:12px 0 4px;padding:10px 12px;
+  border:1px solid var(--line);border-radius:12px;background:var(--surface2);overflow-x:auto}
+.rel-col{flex:1;min-width:54px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.rel-bar{position:relative;width:100%;height:110px;background:var(--chart-track);border-radius:8px;overflow:hidden}
+.rel-fact{position:absolute;left:0;right:0;bottom:0;border-radius:8px 8px 0 0;
+  background:linear-gradient(180deg,var(--green),rgba(22,163,74,.35))}
+.rel-pred{position:absolute;left:0;right:0;height:2px;background:var(--amber);box-shadow:0 0 0 1px rgba(0,0,0,.3)}
+.rel-x{font-size:10px;color:var(--muted)}
+.rel-n{font-size:10px;color:var(--muted)}
 
+/* ---------- аккаунт и выдвижное меню ---------- */
+[hidden]{display:none !important}
+.logo{background:none;border:0;padding:0;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.account-btn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);
+  color:#fff;border-radius:20px;padding:7px 14px;font-size:12px;font-weight:700;
+  cursor:pointer;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.account-btn:hover{background:rgba(255,255,255,.26)}
+.drawer{position:fixed;top:0;left:0;bottom:0;width:min(330px,86vw);z-index:1001;
+  background:var(--surface);border-right:1px solid var(--line);color:var(--text);
+  transform:translateX(-102%);transition:transform .28s ease;display:flex;flex-direction:column;
+  box-shadow:0 0 46px rgba(0,0,0,.5);visibility:hidden}
+.drawer.open{transform:none;visibility:visible}
+.drawer-head{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:16px 18px;color:#fff;border-bottom:3px solid #ff5a60;
+  background:linear-gradient(135deg,var(--navy) 0%,#143a6e 60%,#1a4a8a 100%)}
+.drawer-title{font-weight:900;font-size:16px;letter-spacing:1px}
+.drawer-title span{color:#ff5a60}
+.drawer-close{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);
+  color:#fff;width:34px;height:34px;border-radius:50%;font-size:20px;line-height:1;cursor:pointer}
+.drawer-close:hover{background:rgba(255,255,255,.26)}
+.drawer-menu{display:flex;flex-direction:column;padding:10px;gap:2px;flex:1;overflow-y:auto}
+.drawer-menu button{display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+  background:none;border:0;color:var(--text);padding:12px 14px;border-radius:10px;
+  font-size:14px;font-weight:600;cursor:pointer;transition:background .15s,color .15s}
+.drawer-menu button:hover{background:var(--hover)}
+.drawer-menu button.active{background:rgba(215,20,26,.14);color:var(--title);
+  box-shadow:inset 3px 0 0 var(--red)}
+.drawer-menu .ic{width:28px;height:28px;flex:0 0 28px;border-radius:8px;display:flex;
+  align-items:center;justify-content:center;font-weight:800;font-size:15px;color:#fff;
+  box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.drawer-account{padding:14px 16px;border-top:1px solid var(--line);font-size:13px}
+.drawer-account .acc-email{font-weight:700;color:var(--title);word-break:break-all}
+.drawer-account .acc-role{font-size:11px;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--muted);margin:2px 0 8px}
+.drawer-account .acc-guest{color:var(--muted);margin-bottom:8px}
+.drawer-account .btn{margin:0;width:100%}
+.drawer-foot{padding:10px 16px 14px;font-size:11px;color:var(--muted)}
+.drawer-backdrop{position:fixed;inset:0;background:rgba(4,10,6,.62);z-index:1000;
+  opacity:0;pointer-events:none;transition:opacity .25s}
+.drawer-backdrop.open{opacity:1;pointer-events:auto}
+.modal{position:fixed;inset:0;z-index:1100;display:flex;align-items:center;justify-content:center;
+  padding:18px;background:rgba(4,10,6,.66)}
+.modal[hidden]{display:none}
+.modal-card{position:relative;width:min(430px,100%);background:var(--surface);
+  border:1px solid var(--line);border-radius:16px;padding:22px;color:var(--text);
+  box-shadow:0 20px 60px rgba(0,0,0,.5);max-height:92vh;overflow:auto}
+.modal-close{position:absolute;top:10px;right:12px;background:none;border:0;color:var(--muted);
+  font-size:24px;line-height:1;cursor:pointer}
+.modal-close:hover{color:var(--text)}
+.auth-tabs{display:flex;gap:6px;margin:12px 0 14px;background:var(--surface2);
+  padding:4px;border-radius:10px;border:1px solid var(--line)}
+.auth-tabs button{flex:1;background:none;border:0;padding:8px;border-radius:8px;cursor:pointer;
+  font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+.auth-tabs button.active{background:var(--navy);color:#fff}
+.auth-msg{font-size:12px;margin-top:10px;min-height:18px}
+.auth-msg.ok{color:var(--green)}
+.auth-msg.err{color:#ff6b70}
+
+@media(max-width:700px){
+  .card{padding:14px}
+  .card table{display:block;overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch}
+  .metric-grid{grid-template-columns:repeat(2,1fr)}
+  .tiles{grid-template-columns:1fr}
+  .rel-chart{gap:6px;padding:8px}
+  .rel-bar{height:90px}
+  .rel-col{min-width:44px}
+  .scores td{font-size:11px;padding:5px 3px}
+  .scores th{font-size:10px;padding:5px 6px}
+  .big{font-size:22px}
+  .res .big{font-size:22px}
+  .toggle-row{grid-template-columns:1fr}
+  .theme-toggle{width:32px;height:32px;font-size:14px}
+  .grid{grid-template-columns:1fr}
+}
 </style>
 
 </head>
@@ -253,7 +357,7 @@ td,th{font-variant-numeric:tabular-nums}
 
 <header>
   <div class="top">
-    <div class="logo">
+    <button class="logo" id="logoBtn" type="button" aria-label="Открыть меню" aria-controls="drawer" aria-expanded="false">
       <div class="emblem-img">
         <div class="emblem-bg"></div>
         <img class="emblem-ball" alt="Мяч" src="data:image/png;base64,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">
@@ -262,24 +366,52 @@ td,th{font-variant-numeric:tabular-nums}
         <div class="logo-main">РПЛ <span>АНАЛИТИКА</span></div>
         <div class="logo-sub">прогнозирование матчей на модели Пуассона</div>
       </div>
-    </div>
+    </button>
     <div class="header-right">
       <div class="season">Сезон 2026/27</div>
+      <button class="account-btn" id="accountBtn" type="button">Войти</button>
       <button class="theme-toggle" id="themeToggle" type="button" title="Светлая/тёмная тема" aria-label="Переключить тему">🌙</button>
     </div>
   </div>
 </header>
 
 
-<nav>
-  <div class="wrap">
-    <button class="active" data-tab="tab-calc"><span class="ic ic-calc">λ</span>Калькулятор</button>
-    <button data-tab="tab-base"><span class="ic ic-db">▦</span>База команд</button>
-    <button data-tab="tab-probs"><span class="ic ic-chart">∑</span>Вероятности побед</button>
-    <button data-tab="tab-sim"><span class="ic ic-sim">⚡</span>Симуляция</button>
-    <button data-tab="tab-val"><span class="ic ic-val">✓</span>Валидация</button>
+<aside class="drawer" id="drawer" aria-hidden="true" aria-label="Меню сайта">
+  <div class="drawer-head">
+    <div class="drawer-title">РПЛ <span>АНАЛИТИКА</span></div>
+    <button class="drawer-close" id="drawerClose" type="button" aria-label="Закрыть меню">×</button>
   </div>
-</nav>
+  <div class="drawer-menu" id="drawerMenu">
+    <button class="active" data-tab="tab-calc" type="button"><span class="ic ic-calc">λ</span>Калькулятор</button>
+    <button data-tab="tab-base" type="button"><span class="ic ic-db">▦</span>Данные и вероятности команд</button>
+    <button data-tab="tab-sim" type="button"><span class="ic ic-sim">⚡</span>Симуляция</button>
+    <button data-tab="tab-val" type="button"><span class="ic ic-val">✓</span>Настройки</button>
+    <button data-tab="tab-admin" id="drawerAdmin" type="button" hidden><span class="ic ic-admin">🔒</span>Админка</button>
+  </div>
+  <div class="drawer-account" id="drawerAccount"></div>
+  <div class="drawer-foot">Модель Пуассона · сезон 2026/27</div>
+</aside>
+<div class="drawer-backdrop" id="drawerBackdrop"></div>
+
+<div class="modal" id="authModal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+    <button class="modal-close" id="authClose" type="button" aria-label="Закрыть">×</button>
+    <h2 id="authTitle" style="border:none;padding:0">Вход</h2>
+    <div class="auth-tabs" id="authTabs">
+      <button type="button" data-mode="login" class="active">Вход</button>
+      <button type="button" data-mode="signup">Регистрация</button>
+    </div>
+    <label for="authEmail">Email</label>
+    <input id="authEmail" type="email" autocomplete="username" placeholder="you@example.com">
+    <label for="authPass">Пароль</label>
+    <input id="authPass" type="password" autocomplete="current-password" placeholder="не короче 6 символов">
+    <label for="authPass2" id="authPass2Wrap" hidden>Повторите пароль</label>
+    <input id="authPass2" type="password" autocomplete="new-password" hidden>
+    <button class="btn" id="authSubmit" type="button" style="width:100%">Войти</button>
+    <div class="auth-msg" id="authMsg"></div>
+    <p class="note" id="authHint"></p>
+  </div>
+</div>
 
 
 
@@ -341,36 +473,8 @@ td,th{font-variant-numeric:tabular-nums}
     </div>
 
     <div class="card">
-      <h2>Настройки модели</h2>
-      <div class="grid">
-        <div><label>Коэффициент домашнего поля</label><input id="sHome" type="number" step="0.01" min="1" max="1.5"></div>
-        <div><label>Коэффициент гостей</label><input id="sAway" type="number" step="0.01" min="0.5" max="1"></div>
-        <div><label>Коррекция низких счетов (ρ)</label><input id="sDC" type="number" step="0.01" min="-0.25" max="0.15"></div>
-      </div>
-      <p class="note">Домашний коэффициент умножает λ хозяев, коэффициент гостей — λ гостевой команды.</p>
-      <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:12px">
-        <label style="display:flex;align-items:center;gap:8px;margin:0;color:var(--text)">
-          <input type="checkbox" id="useDyn"> Динамический xG (последние 5 матчей)
-        </label>
-        <label style="display:flex;align-items:center;gap:8px;margin:0;color:var(--text)">
-          <input type="checkbox" id="useSquad"> Учитывать силу состава
-        </label>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Экспорт / импорт базы</h2>
-      <textarea id="io" style="min-height:200px"></textarea>
-      <button class="btn alt" id="exportBtn">Экспорт (JSON)</button>
-      <button class="btn" id="importBtn">Импорт из поля</button>
-    </div>
-  </section>
-
-  <!-- ВКЛАДКА 3: ВЕРОЯТНОСТИ -->
-  <section class="tab" id="tab-probs">
-    <div class="card">
       <h2>База вероятностей побед</h2>
-      <p class="note">Для каждой команды вероятности рассчитаны по всем 15 соперникам (дома и в гостях) и сохраняются в базу. Прогноз очков — за 30 туров.</p>
+      <p class="note">Для каждой команды вероятности рассчитаны по всем соперникам дивизиона (дома и в гостях) и сохраняются в базу. Прогноз очков — за полный сезон.</p>
       <button class="btn" id="recalcBtn">Пересчитать и сохранить</button>
       <div id="probTable"></div>
     </div>
@@ -378,9 +482,10 @@ td,th{font-variant-numeric:tabular-nums}
       <h2>Матрица: P(победа хозяев)</h2>
       <p class="note">Строка — домашняя команда, столбец — гостевая.</p>
       <div id="probMatrix" style="overflow:auto"></div>
-    </div> 
-</section>
-<!-- ВКЛАДКА 4: СИМУЛЯЦИЯ -->
+    </div>
+  </section>
+
+<!-- ВКЛАДКА 3: СИМУЛЯЦИЯ -->
 <section class="tab" id="tab-sim">
   <div class="card">
     <h2>Симуляция тура вживую</h2>
@@ -440,6 +545,8 @@ td,th{font-variant-numeric:tabular-nums}
       <button class="btn" id="vAdd">➕ Добавить матч</button>
       <button class="btn alt" id="vImport">📥 Импорт CSV</button>
       <button class="btn alt" id="vClear">🗑 Очистить историю</button>
+      <button class="btn alt" id="vExportShared">⬇ Скачать общую базу</button>
+      <button class="btn alt" id="vBuildShared">Собрать matches.js из CSV</button>
     </div>
     <textarea id="vCsv" style="min-height:120px;display:none" placeholder="КомандаА,КомандаБ,голыА,голыБ,Тур"></textarea>
   </div>
@@ -455,20 +562,85 @@ td,th{font-variant-numeric:tabular-nums}
   </div>
 
   <div class="card">
+    <h2>История прогнозов</h2>
+    <p class="note">Прогноз сохраняется кнопкой в калькуляторе. Когда результат матча появляется в истории, он сверяется с прогнозом автоматически.</p>
+    <div id="vPreds"></div>
+    <button class="btn alt" id="vPredsClear">Очистить прогнозы</button>
+  </div>
+
+  <div class="card">
     <h2>Калибровка параметров</h2>
     <p class="note">На основе сохранённых матчей подбираются домашний буст, гостевой штраф и ρ Диксона–Коулза, максимизирующие правдоподобие. Нужно минимум 5 матчей.</p>
     <button class="btn" id="vCalibrate">🔧 Калибровать и применить</button>
+    <div id="vCalibNow"></div>
     <div id="vCalibOut" style="margin-top:10px"></div>
   </div>
-</section>
 
+    <div class="card">
+      <h2>Функции модели</h2>
+      <p class="note">Дополнительные расчёты, влияющие на прогноз. По умолчанию выключены — модель считает по статичным xG из базы.</p>
+      <div class="toggle-row">
+        <label class="toggle"><input type="checkbox" id="useDyn"><span>Динамический xG по форме<small>Сила по последним 5 матчам, с учётом дом/гость и соперника</small></span></label>
+        <label class="toggle"><input type="checkbox" id="useSquad"><span>Учитывать силу состава<small>Коррекция λ по рейтингам игроков из заявки</small></span></label>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Параметры модели</h2>
+      <div class="grid">
+        <div><label>Коэффициент домашнего поля</label><input id="sHome" type="number" step="0.01" min="1" max="1.5"></div>
+        <div><label>Коэффициент гостей</label><input id="sAway" type="number" step="0.01" min="0.5" max="1"></div>
+        <div><label>Коррекция низких счетов (ρ)</label><input id="sDC" type="number" step="0.01" min="-0.25" max="0.15"></div>
+      </div>
+      <p class="note">Домашний коэффициент умножает λ хозяев, коэффициент гостей — λ гостевой команды. Значения применяются к обеим лигам; точную подгонку по лигам делает калибровка выше.</p>
+    </div>
+    <div class="card">
+      <h2>Экспорт / импорт базы</h2>
+      <textarea id="io" style="min-height:200px"></textarea>
+      <button class="btn alt" id="exportBtn">Экспорт (JSON)</button>
+      <button class="btn" id="importBtn">Импорт из поля</button>
+    </div>
+  </section>
+
+  <!-- ВКЛАДКА 7: АДМИНКА -->
+  <section class="tab" id="tab-admin">
+    <div class="card">
+      <h2>Админка общей базы</h2>
+      <div id="adminStatus"></div>
+    </div>
+    <div class="card" id="adminLoginCard">
+      <h3>Доступ</h3>
+      <p class="note">Вход и регистрация — в меню аккаунта: кнопка «Войти» в шапке или выдвижное меню по логотипу. Права администратора определяются по таблице admins.</p>
+      <button class="btn" id="adminOpenAuth" type="button">Войти / Регистрация</button>
+      <button class="btn alt" id="adminLogout" type="button">Выйти</button>
+    </div>
+    <div class="card" id="adminAddCard">
+      <h3>Добавить матч в общую базу</h3>
+      <div class="grid">
+        <div><label>Домашняя команда</label><select id="aHome"></select></div>
+        <div><label>Гостевая команда</label><select id="aAway"></select></div>
+        <div><label>Голы хозяев</label><input id="aGh" type="number" min="0" max="20" value="0"></div>
+        <div><label>Голы гостей</label><input id="aGa" type="number" min="0" max="20" value="0"></div>
+        <div><label>Тур</label><input id="aRound" type="number" min="1" value="1"></div>
+      </div>
+      <button class="btn" id="adminAdd">Добавить матч</button>
+      <div id="adminOut" class="note"></div>
+    </div>
+    <div class="card">
+      <h3>Матчи в облаке</h3>
+      <div id="adminList"></div>
+      <button class="btn alt" id="adminRefresh">Обновить список</button>
+    </div>
+  </section>
 
 </main>
 
 <script src="data.js"></script>
 <script src="model.js"></script>
+<script src="matches.js"></script>
 <script src="history.js"></script>
 <script src="players.js"></script>
+<script src="config.js"></script>
+<script src="db-remote.js"></script>
 <script>
 window.onerror = function(msg, src, line, col){
   document.body.insertAdjacentHTML('afterbegin',
@@ -487,6 +659,22 @@ function validTeam(t){
 
 
 /* ================== БАЗА ДАННЫХ ================== */
+function ensureLeague(db){
+  if(!db.league || typeof db.league !== 'object') db.league = {};
+  ['rpl','fnl'].forEach(div=>{
+    const s = db.league[div];
+    if(!s || typeof s !== 'object' || !Number.isFinite(s.homeBoost)){
+      db.league[div] = { homeBoost:1.10, awayPenalty:0.95, dixonColes:-0.08 };
+    }
+  });
+  return db;
+}
+function setLeagueParam(key, value){
+  DB.settings[key] = value;
+  if(DB.league){
+    ['rpl','fnl'].forEach(div => { if(DB.league[div]) DB.league[div][key] = value; });
+  }
+}
 function loadDB(){
   try{
     const d = JSON.parse(localStorage.getItem(KEY));
@@ -496,13 +684,13 @@ function loadDB(){
         const def = DEFAULT_TEAMS[i] || {};
         for(const k in def) if(!(k in t)) t[k] = def[k];
       }});
-      return d;
+      return ensureLeague(d);
     }
     // невалидные/устаревшие данные — сбрасываем, но предупреждаем
     if(d){ window.__dbWasReset = true; console.warn('Аналитика РПЛ: сохранённая база некорректна (ожидалось 34 команды) — сброс к исходным.'); }
   }catch(e){ window.__dbWasReset = true; console.warn('Аналитика РПЛ: не удалось прочитать базу — сброс к исходным.', e); }
-  return {teams: JSON.parse(JSON.stringify(DEFAULT_TEAMS)),
-        settings:{homeBoost:1.10, awayPenalty:0.95, dixonColes:-0.08}, probs:null};
+  return ensureLeague({teams: JSON.parse(JSON.stringify(DEFAULT_TEAMS)),
+        settings:{homeBoost:1.10, awayPenalty:0.95, dixonColes:-0.08}, probs:null});
 }
 let DB = loadDB();
 function saveDB(){ localStorage.setItem(KEY, JSON.stringify(DB)); }
@@ -515,16 +703,184 @@ function showDbResetNotice(){
   document.body.appendChild(d);
   setTimeout(()=>d.remove(), 8000);
 }
+function downloadText(filename, text){
+  const blob = new Blob([text], {type:'text/javascript;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+}
 
-/* ================== ВКЛАДКИ ================== */
-document.querySelectorAll('nav button').forEach(b=>{
-  b.onclick = ()=>{
-    document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
-    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
-    b.classList.add('active');
-    document.getElementById(b.dataset.tab).classList.add('active');
-    refreshAll();
-  };
+/* ================== ВЫДВИЖНОЕ МЕНЮ ================== */
+const drawerEl = document.getElementById('drawer');
+const drawerBackdrop = document.getElementById('drawerBackdrop');
+function openDrawer(){
+  if(!drawerEl) return;
+  drawerEl.classList.add('open');
+  drawerEl.setAttribute('aria-hidden','false');
+  if(drawerBackdrop) drawerBackdrop.classList.add('open');
+  const lb = document.getElementById('logoBtn');
+  if(lb) lb.setAttribute('aria-expanded','true');
+}
+function closeDrawer(){
+  if(!drawerEl) return;
+  drawerEl.classList.remove('open');
+  drawerEl.setAttribute('aria-hidden','true');
+  if(drawerBackdrop) drawerBackdrop.classList.remove('open');
+  const lb = document.getElementById('logoBtn');
+  if(lb) lb.setAttribute('aria-expanded','false');
+}
+const logoBtnEl = document.getElementById('logoBtn');
+if(logoBtnEl) logoBtnEl.onclick = openDrawer;
+const drawerCloseBtn = document.getElementById('drawerClose');
+if(drawerCloseBtn) drawerCloseBtn.onclick = closeDrawer;
+if(drawerBackdrop) drawerBackdrop.onclick = closeDrawer;
+
+const menuButtons = Array.from(document.querySelectorAll('#drawerMenu button'));
+function activateTab(id){
+  if(!id || !document.getElementById(id)) return;
+  menuButtons.forEach(x => x.classList.toggle('active', x.dataset.tab === id));
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x.id === id));
+  if(id === 'tab-admin' && typeof renderAdmin === 'function') renderAdmin();
+  refreshAll();
+}
+menuButtons.forEach(b => {
+  b.onclick = () => { activateTab(b.dataset.tab); closeDrawer(); };
+});
+
+/* ================== АККАУНТ: ВХОД / РЕГИСТРАЦИЯ ================== */
+let AUTH_IS_ADMIN = false;
+
+function renderAccount(){
+  const email = (typeof remoteUserEmail === 'function') ? remoteUserEmail() : null;
+  const btn = document.getElementById('accountBtn');
+  const box = document.getElementById('drawerAccount');
+  const adminItem = document.getElementById('drawerAdmin');
+  if(btn) btn.textContent = email ? email.split('@')[0] : 'Войти';
+  if(box){
+    if(email){
+      box.innerHTML = `<div class="acc-email">${esc(email)}</div>` +
+        `<div class="acc-role">${AUTH_IS_ADMIN ? 'администратор' : 'пользователь'}</div>` +
+        `<button class="btn alt" id="accLogout" type="button">Выйти</button>`;
+      const lo = document.getElementById('accLogout');
+      if(lo) lo.onclick = async () => {
+        if(typeof remoteSignOut === 'function') await remoteSignOut();
+        AUTH_IS_ADMIN = false;
+        renderAccount();
+        if(typeof renderAdmin === 'function') renderAdmin();
+      };
+    } else {
+      box.innerHTML = `<div class="acc-guest">Гостевой режим</div>` +
+        `<button class="btn" id="accLogin" type="button">Войти / Регистрация</button>`;
+      const li = document.getElementById('accLogin');
+      if(li) li.onclick = () => openAuth('login');
+    }
+  }
+  if(adminItem) adminItem.hidden = !(email && AUTH_IS_ADMIN);
+}
+
+async function refreshAdminRole(){
+  AUTH_IS_ADMIN = false;
+  if(typeof remoteConfigured === 'function' && remoteConfigured() &&
+     typeof remoteUserEmail === 'function' && remoteUserEmail() &&
+     typeof remoteIsAdmin === 'function'){
+    try{ AUTH_IS_ADMIN = await remoteIsAdmin(); }catch(e){ AUTH_IS_ADMIN = false; }
+  }
+  renderAccount();
+  const adminTab = document.getElementById('tab-admin');
+  if(adminTab && adminTab.classList.contains('active') && !AUTH_IS_ADMIN) activateTab('tab-calc');
+  if(typeof renderAdmin === 'function') renderAdmin();
+}
+
+let authMode = 'login';
+function setAuthMode(mode){
+  authMode = mode === 'signup' ? 'signup' : 'login';
+  const loginTab = document.querySelector('#authTabs [data-mode="login"]');
+  const signupTab = document.querySelector('#authTabs [data-mode="signup"]');
+  if(loginTab) loginTab.classList.toggle('active', authMode === 'login');
+  if(signupTab) signupTab.classList.toggle('active', authMode === 'signup');
+  const t = document.getElementById('authTitle');
+  if(t) t.textContent = authMode === 'signup' ? 'Регистрация' : 'Вход';
+  const p2 = document.getElementById('authPass2');
+  const p2w = document.getElementById('authPass2Wrap');
+  if(p2) p2.hidden = authMode !== 'signup';
+  if(p2w) p2w.hidden = authMode !== 'signup';
+  const submit = document.getElementById('authSubmit');
+  if(submit) submit.textContent = authMode === 'signup' ? 'Зарегистрироваться' : 'Войти';
+  const hint = document.getElementById('authHint');
+  if(hint) hint.textContent = authMode === 'signup'
+    ? 'Регистрация открыта. Права администратора выдаются отдельно — внесением email в таблицу admins.'
+    : 'Войдите, чтобы открыть админку (доступна администраторам).';
+  const msg = document.getElementById('authMsg');
+  if(msg){ msg.textContent = ''; msg.className = 'auth-msg'; }
+}
+function openAuth(mode){
+  setAuthMode(mode);
+  const m = document.getElementById('authModal');
+  if(!m) return;
+  m.hidden = false;
+  const em = document.getElementById('authEmail');
+  if(em) setTimeout(() => em.focus(), 30);
+}
+function closeAuth(){
+  const m = document.getElementById('authModal');
+  if(m) m.hidden = true;
+  const msg = document.getElementById('authMsg');
+  if(msg){ msg.textContent = ''; msg.className = 'auth-msg'; }
+}
+async function submitAuth(){
+  const email = (document.getElementById('authEmail')?.value || '').trim();
+  const pass = document.getElementById('authPass')?.value || '';
+  const pass2 = document.getElementById('authPass2')?.value || '';
+  const msg = document.getElementById('authMsg');
+  const say = (text, ok) => { if(msg){ msg.textContent = text; msg.className = 'auth-msg ' + (ok ? 'ok' : 'err'); } };
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return say('Укажите корректный email.', false);
+  if(pass.length < 6) return say('Пароль должен быть не короче 6 символов.', false);
+  if(authMode === 'signup' && pass !== pass2) return say('Пароли не совпадают.', false);
+  if(typeof remoteConfigured === 'function' && !remoteConfigured()) return say('Бэкенд не настроен: заполните config.js.', false);
+  const btn = document.getElementById('authSubmit');
+  if(btn) btn.disabled = true;
+  try{
+    if(authMode === 'signup'){
+      const r = await remoteSignUp(email, pass);
+      if(r && r.signedIn){
+        await refreshAdminRole();
+        say('Аккаунт создан, вы вошли.', true);
+        setTimeout(closeAuth, 900);
+      } else {
+        say('Аккаунт создан. Подтвердите email по ссылке из письма, затем войдите.', true);
+      }
+    } else {
+      await remoteSignIn(email, pass);
+      await refreshAdminRole();
+      say('Вы вошли.', true);
+      setTimeout(closeAuth, 700);
+    }
+  }catch(e){
+    say(String(e.message || e), false);
+  }finally{
+    if(btn) btn.disabled = false;
+  }
+}
+
+const authTabsEl = document.getElementById('authTabs');
+if(authTabsEl) authTabsEl.querySelectorAll('button').forEach(b => { b.onclick = () => setAuthMode(b.dataset.mode); });
+const authSubmitBtn = document.getElementById('authSubmit');
+if(authSubmitBtn) authSubmitBtn.onclick = submitAuth;
+const authCloseBtn = document.getElementById('authClose');
+if(authCloseBtn) authCloseBtn.onclick = closeAuth;
+const accountBtnEl = document.getElementById('accountBtn');
+if(accountBtnEl) accountBtnEl.onclick = () => {
+  const email = (typeof remoteUserEmail === 'function') ? remoteUserEmail() : null;
+  if(email) openDrawer(); else openAuth('login');
+};
+['authPass','authPass2'].forEach(id => {
+  const el = document.getElementById(id);
+  if(el) el.addEventListener('keydown', e => { if(e.key === 'Enter') submitAuth(); });
+});
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape'){ closeDrawer(); closeAuth(); }
 });
 
 /* ================== КАЛЬКУЛЯТОР ================== */
@@ -564,6 +920,7 @@ function calcRun(){
 
     out.innerHTML = `
     <h3 class="match-title">${esc(H.name)} — ${esc(A.name)}</h3>
+    <button class="btn alt" id="savePredBtn">Сохранить прогноз</button>
     <div class="grid">
       <div class="info team-box" style="border-left-color:${esc(H.color||'#2a7de0')}"><img class="crest" style="width:40px;height:40px" src="${esc(H.logo)}" onerror="this.style.display='none'"><b>${esc(H.name)}</b> (дома)<br>
         Тренер: ${esc(H.coach)||'—'}<br>Схема: ${esc(H.formation)||'—'}<br>
@@ -591,6 +948,13 @@ function calcRun(){
     </div>
     <h3>Матрица счетов (Пуассон)</h3>
     ${table}`;
+    const sb = $('#savePredBtn');
+    if(sb) sb.onclick = () => {
+      addPrediction(H.name, A.name, [r.pw, r.pd, r.pl], r.lh, r.la);
+      sb.textContent = 'Прогноз сохранён';
+      sb.disabled = true;
+      renderPredictions();
+    };
 }
 
 /* ================== БАЗА КОМАНД ================== */
@@ -911,7 +1275,7 @@ $('#calcHome').onchange = ()=>{ calcRun(); syncH2HFromCalc(); renderH2H(); };
 $('#calcAway').onchange = ()=>{ calcRun(); syncH2HFromCalc(); renderH2H(); };
 $('#sDC').onchange = e => {
   const v = parseFloat(e.target.value);
-  if(isFinite(v)) DB.settings.dixonColes = v;
+  if(isFinite(v)) setLeagueParam('dixonColes', v);
   DB.probs=null; saveDB(); refreshAll();
 };
 
@@ -921,13 +1285,13 @@ $('#teamSel').onchange = e => loadForm(+e.target.value);
 $('#saveTeamBtn').onclick = saveTeam;
 $('#resetBtn').onclick = ()=>{
   if(!confirm('Сбросить все данные к исходным?')) return;
-        DB = {teams: JSON.parse(JSON.stringify(DEFAULT_TEAMS)),
-          settings:{homeBoost:1.10, awayPenalty:0.95, dixonColes:-0.08}, probs:null};
+        DB = ensureLeague({teams: JSON.parse(JSON.stringify(DEFAULT_TEAMS)),
+          settings:{homeBoost:1.10, awayPenalty:0.95, dixonColes:-0.08}, probs:null});
   saveDB(); refreshAll();
 };
 
-$('#sHome').onchange = e => { DB.settings.homeBoost = parseFloat(e.target.value)||1.1; DB.probs=null; saveDB(); refreshAll(); };
-$('#sAway').onchange = e => { DB.settings.awayPenalty = parseFloat(e.target.value)||0.95; DB.probs=null; saveDB(); refreshAll(); };
+$('#sHome').onchange = e => { setLeagueParam('homeBoost', parseFloat(e.target.value)||1.1); DB.probs=null; saveDB(); refreshAll(); };
+$('#sAway').onchange = e => { setLeagueParam('awayPenalty', parseFloat(e.target.value)||0.95); DB.probs=null; saveDB(); refreshAll(); };
 $('#recalcBtn').onclick = ()=>{ computeProbs(); saveDB(); renderProbs(); alert('База вероятностей пересчитана и сохранена'); };
 $('#exportBtn').onclick = ()=>{ $('#io').value = JSON.stringify(DB, null, 2); };
 $('#importBtn').onclick = ()=>{
@@ -935,7 +1299,7 @@ $('#importBtn').onclick = ()=>{
     const d = JSON.parse($('#io').value);
     if(!d.teams || d.teams.length !== 34) throw new Error('Нужно ровно 34 команд');
     if(!d.teams.every(validTeam)) throw new Error('В одной из команд некорректные поля (name/xgf/xga)');
-    DB = d; DB.probs = null; saveDB(); refreshAll(); alert('Импорт выполнен');
+    DB = ensureLeague(d); DB.probs = null; saveDB(); refreshAll(); alert('Импорт выполнен');
   }catch(e){ alert('Ошибка импорта: '+e.message); }
 };
 
@@ -1323,28 +1687,170 @@ function fillVSel(){
   fillSelect($('#vAway'));
 }
 function renderMetrics(){
-  if(!$('#vMetrics') || typeof validationMetrics !== 'function') return;
+  const el = $('#vMetrics'); if(!el || typeof validationMetrics !== 'function') return;
   const m = validationMetrics();
-  $('#vMetrics').innerHTML = `<p class="note">Матчей в базе: <b>${m.n}</b></p>` +
-    (m.n ? `<table>
-        <tr><th>Точность исходов</th><th>Калибровка</th><th>Совпадений (диагональ)</th></tr>
-        <tr><td>${(m.acc*100).toFixed(1)}%</td><td>${(1-m.cal).toFixed(1)}%</td><td>${m.conf[0][0]+m.conf[1][1]+m.conf[2][2]} / ${m.n}</td></tr>
-      </table>
-      <h3 style="margin-top:16px">Матрица прогноз × факт (всего матчей, строки — прогноз, столбцы — факт)</h3>
+  let html = `<p class="note">Матчей в базе: <b>${m.n}</b>${m.skipped ? ` · пропущено: ${m.skipped}` : ''}</p>`;
+  if(m.n){
+    html += `<div class="metric-grid">
+      <div class="metric"><div class="m-label">Точность исходов</div><div class="m-value">${(m.acc*100).toFixed(1)}%</div></div>
+      <div class="metric"><div class="m-label">Log-loss</div><div class="m-value">${m.logLoss.toFixed(3)}</div></div>
+      <div class="metric"><div class="m-label">Brier</div><div class="m-value">${m.brier.toFixed(3)}</div></div>
+      <div class="metric"><div class="m-label">Совпадений (диагональ)</div><div class="m-value">${m.conf[0][0]+m.conf[1][1]+m.conf[2][2]} / ${m.n}</div></div>
+    </div>`;
+    html += `<h3 style="margin-top:16px">Матрица прогноз × факт</h3>
       <table>
         <tr><th class="l">Прогноз \\ Факт</th><th>Победа хозяев</th><th>Ничья</th><th>Победа гостей</th></tr>
         <tr><td class="l"><b>Победа хозяев</b></td><td>${m.conf[0][0]}</td><td>${m.conf[0][1]}</td><td>${m.conf[0][2]}</td></tr>
         <tr><td class="l"><b>Ничья</b></td><td>${m.conf[1][0]}</td><td>${m.conf[1][1]}</td><td>${m.conf[1][2]}</td></tr>
         <tr><td class="l"><b>Победа гостей</b></td><td>${m.conf[2][0]}</td><td>${m.conf[2][1]}</td><td>${m.conf[2][2]}</td></tr>
-      </table>` : '');
+      </table>`;
+    if(m.rounds && m.rounds.length){
+      html += `<h3 style="margin-top:16px">Точность по турам</h3>
+        <table>
+          <tr><th>Тур</th><th>Матчей</th><th>Точность</th><th>Log-loss</th></tr>` +
+        m.rounds.map(r=>`<tr><td>${r.round}</td><td>${r.n}</td><td>${(r.acc*100).toFixed(0)}%</td><td>${r.logLoss.toFixed(2)}</td></tr>`).join('') +
+        `</table>`;
+    }
+    if(m.reliability && m.reliability.length){
+      html += `<h3 style="margin-top:16px">Калибровка: прогноз против факта</h3>
+        <p class="note">Столбцы — интервалы прогнозной вероятности. Заливка — фактическая частота, жёлтая линия — средний прогноз. Чем ближе линия к верху заливки, тем лучше калибровка.</p>
+        <div class="rel-chart">` +
+        m.reliability.map(b=>{
+          const pred = Math.round(b.pred*100), fact = Math.round(b.fact*100);
+          return `<div class="rel-col" title="Прогноз ${pred}%, факт ${fact}%, матчей: ${b.n}">
+            <div class="rel-bar"><div class="rel-fact" style="height:${fact}%"></div><div class="rel-pred" style="bottom:${pred}%"></div></div>
+            <div class="rel-x">${Math.round(b.lo*100)}–${Math.round(b.hi*100)}%</div>
+            <div class="rel-n">n=${b.n}</div>
+          </div>`;
+        }).join('') + `</div>`;
+    }
+  }
+  el.innerHTML = html;
+}
+function renderCalibNow(){
+  const el = $('#vCalibNow'); if(!el) return;
+  const s = d => (DB.league && DB.league[d]) || DB.settings || {};
+  const f = x => Number.isFinite(x) ? x.toFixed(2) : '—';
+  const line = (title, d) => {
+    const v = s(d);
+    return `${title}: дом ×${f(v.homeBoost)}, гость ×${f(v.awayPenalty)}, ρ=${f(v.dixonColes)}`;
+  };
+  el.innerHTML = `<p class="note">Текущие параметры — ${line('РПЛ','rpl')}; ${line('ФНЛ','fnl')}.</p>`;
+}
+function renderPredictions(){
+  const el = $('#vPreds'); if(!el) return;
+  if(typeof PREDICTIONS === 'undefined' || !PREDICTIONS.length){
+    el.innerHTML = '<p class="note">Прогнозов пока нет. Сохраните прогноз в калькуляторе.</p>';
+    return;
+  }
+  const ev = evaluatePredictions();
+  const names = ['П1','X','П2'];
+  let html = `<p class="note">Всего прогнозов: <b>${ev.rows.length}</b> · сверено: <b>${ev.n}</b> · ждут результата: <b>${ev.pending}</b>` +
+    (ev.n ? ` · точность: <b>${(ev.acc*100).toFixed(1)}%</b> · Brier: <b>${ev.brier.toFixed(3)}</b> · log-loss: <b>${ev.logLoss.toFixed(3)}</b>` : '') + '</p>';
+  html += '<table><tr><th class="l">Матч</th><th>Прогноз</th><th>Факт</th><th>Итог</th><th>Brier</th></tr>';
+  html += ev.rows.slice().reverse().map(r => {
+    const pr = `${names[r.pred]} (${Math.round(r.probs[r.pred]*100)}%)`;
+    const fact = r.fact === null ? '—' : `${names[r.fact]} ${r.gh}:${r.ga}`;
+    const res = r.fact === null ? 'ждём' : (r.hit ? '✅' : '❌');
+    const br = r.brier === null ? '—' : r.brier.toFixed(2);
+    return `<tr><td class="l">${esc(r.home)} — ${esc(r.away)}</td><td>${pr}</td><td>${fact}</td><td>${res}</td><td>${br}</td></tr>`;
+  }).join('');
+  html += '</table>';
+  el.innerHTML = html;
+}
+function fillAdminSelects(){
+  if(!$('#aHome')) return;
+  fillSelect($('#aHome'));
+  fillSelect($('#aAway'));
+}
+function adminStatus(text, ok){
+  const el = $('#adminStatus'); if(!el) return;
+  el.innerHTML = `<p class="note"${ok ? ' style="color:var(--green)"' : ''}>${text}</p>`;
+}
+async function renderAdmin(){
+  if(!$('#adminStatus')) return;
+  const configured = remoteConfigured();
+  const email = remoteUserEmail();
+  const isAdmin = !!(email && AUTH_IS_ADMIN);
+  const loginCard = $('#adminLoginCard'), addCard = $('#adminAddCard');
+  if(loginCard) loginCard.style.display = configured ? '' : 'none';
+  if(addCard) addCard.style.display = (configured && isAdmin) ? '' : 'none';
+  if(!configured){
+    adminStatus('Бэкенд не настроен: заполните SUPABASE_URL и SUPABASE_ANON_KEY в config.js. Пока работает локальный режим (matches.js + localStorage).');
+  } else if(!email){
+    adminStatus('Бэкенд подключён. Войдите через меню аккаунта, чтобы управлять общей базой.');
+  } else if(!isAdmin){
+    adminStatus('Вы вошли как ' + esc(email) + ', но права администратора не выданы. Добавьте email в таблицу admins.', false);
+  } else {
+    adminStatus('Вы вошли как ' + esc(email) + ' (администратор).', true);
+  }
+  const list = $('#adminList');
+  if(!list) return;
+  if(!configured){ list.innerHTML = '<p class="note">Облачные матчи недоступны.</p>'; return; }
+  list.innerHTML = '<p class="note">Загрузка…</p>';
+  try{
+    const rows = await remoteLoadMatches();
+    if(!rows.length){ list.innerHTML = '<p class="note">В облаке пока нет матчей.</p>'; return; }
+    list.innerHTML = '<table><tr><th>ID</th><th class="l">Матч</th><th>Счёт</th><th>Тур</th><th></th></tr>' +
+      rows.map(r => `<tr><td>${r.id}</td><td class="l">${esc(r.home)} — ${esc(r.away)}</td><td>${r.gh}:${r.ga}</td><td>${r.round}</td><td>${isAdmin ? `<button class="btn alt" data-del="${r.id}">Удалить</button>` : ''}</td></tr>`).join('') +
+      '</table>';
+    list.querySelectorAll('[data-del]').forEach(btn => {
+      btn.onclick = async () => {
+        if(!confirm('Удалить матч из общей базы?')) return;
+        try{
+          await remoteDeleteMatch(btn.dataset.del);
+          await remoteMergeMatches();
+          renderMetrics(); renderHistory(); renderPredictions();
+          await renderAdmin();
+        }catch(e){ alert(String(e.message || e)); }
+      };
+    });
+  }catch(e){
+    list.innerHTML = '<p class="note">Не удалось загрузить: ' + esc(String(e.message || e)) + '</p>';
+  }
+}
+function bindAdmin(){
+  if($('#adminOpenAuth')) $('#adminOpenAuth').onclick = () => openAuth('login');
+  if($('#adminLogout')) $('#adminLogout').onclick = async () => {
+    await remoteSignOut();
+    AUTH_IS_ADMIN = false;
+    renderAccount();
+    await renderAdmin();
+  };
+  if($('#adminAdd')) $('#adminAdd').onclick = async () => {
+    const h = +$('#aHome').value, a = +$('#aAway').value;
+    const gh = +$('#aGh').value, ga = +$('#aGa').value, r = +$('#aRound').value;
+    if(h === a) return alert('Команды должны различаться');
+    if(!(Number.isInteger(gh) && gh >= 0 && gh <= 20 && Number.isInteger(ga) && ga >= 0 && ga <= 20)) return alert('Голы — целые числа от 0 до 20');
+    if(!(Number.isInteger(r) && r >= 1)) return alert('Тур — целое число от 1');
+    try{
+      await remoteAddMatch({ home: DB.teams[h].name, away: DB.teams[a].name, gh, ga, round: r });
+      await remoteMergeMatches();
+      renderMetrics(); renderHistory(); renderPredictions();
+      await renderAdmin();
+    }catch(e){ alert('Не добавлено: ' + (e.message || e)); }
+  };
+  if($('#adminRefresh')) $('#adminRefresh').onclick = async () => {
+    await remoteMergeMatches();
+    renderMetrics(); renderHistory(); renderPredictions();
+    await renderAdmin();
+  };
+  const adminNav = document.querySelector('#drawerMenu button[data-tab="tab-admin"]');
+  if(adminNav) adminNav.addEventListener('click', () => { renderAdmin(); });
 }
 function renderHistory(){
   const el = $('#vList'); if(!el) return;
   if(typeof HISTORY === 'undefined' || !HISTORY.length){ el.innerHTML = '<p class="note">Пока нет внесённых матчей.</p>'; return; }
-  const head = '<tr><th>#</th><th class="l">Дома</th><th class="l">Гости</th><th>Счёт</th><th>Тур</th></tr>';
-  const rows = HISTORY.slice().reverse().map((m,i)=>
-    `<tr><td>${HISTORY.length-i}</td><td class="l">${esc(m.home)}</td><td class="l">${esc(m.away)}</td><td>${m.gh}:${m.ga}</td><td>${m.round ?? '—'}</td></tr>`).join('');
-  el.innerHTML = `<table>${head}${rows}</table>`;
+  const shared = HISTORY.filter(m=>m && m.shared).length;
+  const local = HISTORY.length - shared;
+  const head = '<tr><th>#</th><th class="l">Дома</th><th class="l">Гости</th><th>Счёт</th><th>Тур</th><th>Источник</th></tr>';
+  const rows = HISTORY.slice().reverse().map((m,i)=>{
+    const badge = m && m.shared
+      ? '<span class="src-badge src-shared">общий</span>'
+      : '<span class="src-badge src-local">мой</span>';
+    return `<tr><td>${HISTORY.length-i}</td><td class="l">${esc(m.home)}</td><td class="l">${esc(m.away)}</td><td>${m.gh}:${m.ga}</td><td>${m.round ?? '-'}</td><td>${badge}</td></tr>`;
+  }).join('');
+  el.innerHTML = `<p class="note">Всего матчей: <b>${HISTORY.length}</b> · общих: <b>${shared}</b> · моих: <b>${local}</b></p><table>${head}${rows}</table>`;
 }
 function bindValidation(){
   if($('#vAdd')) $('#vAdd').onclick = () => {
@@ -1372,21 +1878,55 @@ function bindValidation(){
   if($('#vClear')) $('#vClear').onclick = () => {
     if(confirm('Очистить всю историю матчей?')){ clearHistory(); saveHistory(); renderMetrics(); renderHistory(); }
   };
+  if($('#vExportShared')) $('#vExportShared').onclick = () => {
+    const arr = HISTORY.map(m => ({home:m.home, away:m.away, gh:m.gh, ga:m.ga, round:(m.round ?? 1)}));
+    const text = '/* Общая база реальных матчей. Публикуется вместе с сайтом: эти матчи видят все посетители.\n' +
+                 '   Формат: home, away, gh (голы хозяев), ga (голы гостей), round (тур). */\n' +
+                 'const SHARED_MATCHES = ' + JSON.stringify(arr, null, 2) + ';\n';
+    const blob = new Blob([text], {type:'text/javascript;charset=utf-8'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'matches.js';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  };
+  if($('#vPredsClear')) $('#vPredsClear').onclick = () => {
+    if(confirm('Очистить сохранённые прогнозы?')){ clearPredictions(); renderPredictions(); }
+  };
+  if($('#vBuildShared')) $('#vBuildShared').onclick = () => {
+    const csvEl = $('#vCsv');
+    const csv = ((csvEl && csvEl.value) || '').trim();
+    if(!csv){
+      if(csvEl){ csvEl.style.display = 'block'; csvEl.focus(); }
+      alert('Вставьте CSV в поле ниже и нажмите кнопку ещё раз.');
+      return;
+    }
+    const res = buildMatchesFromCSV(csv);
+    if(!res.items.length){
+      alert('Не найдено корректных матчей.' + (res.unknown.length ? ' Неизвестные команды: ' + res.unknown.join(', ') : ''));
+      return;
+    }
+    const header = '/* Общая база реальных матчей. Публикуется вместе с сайтом: эти матчи видят все посетители.\n' +
+                   '   Формат: home, away, gh (голы хозяев), ga (голы гостей), round (тур). */\n';
+    downloadText('matches.js', header + 'const SHARED_MATCHES = ' + JSON.stringify(res.items, null, 2) + ';\n');
+    alert(`Готово: ${res.items.length} матчей. Пропущено строк: ${res.bad}. Дубликатов: ${res.dup}. Неизвестные команды: ${res.unknown.length ? res.unknown.join(', ') : 'нет'}`);
+  };
   if($('#vCalibrate')) $('#vCalibrate').onclick = () => {
     const out = $('#vCalibOut');
     const res = calibrateParams();
-    if(res && res.ok){
-      saveDB();
-      out.innerHTML = `<p class="note" style="color:var(--green)">✅ Применено: дом ×${res.homeBoost.toFixed(2)}, гость ×${res.awayPenalty.toFixed(2)}, ρ=${res.dixonColes.toFixed(2)}. Учтено матчей: ${res.used}. Правдоподобие: ${res.gainPct>=0?'+':''}${res.gainPct}%.</p>`;
-      refreshAll();
-    } else {
-      out.innerHTML = `<p class="note">Калибровка не выполнена — нужно минимум 5 матчей. Сейчас пригодных: ${res && res.used != null ? res.used : 0}.</p>`;
-    }
+    const line = (r, title) => {
+      if(!r) return '';
+      if(r.ok) return `<p class="note" style="color:var(--green)">✅ ${title}: дом ×${r.homeBoost.toFixed(2)}, гость ×${r.awayPenalty.toFixed(2)}, ρ=${r.dixonColes.toFixed(2)}. Матчей: ${r.used}. Правдоподобие: ${r.gainPct>=0?'+':''}${r.gainPct}%.</p>`;
+      return `<p class="note">${title}: мало матчей (${r.used || 0} из 5).</p>`;
+    };
+    out.innerHTML = line(res.rpl, 'РПЛ') + line(res.fnl, 'ФНЛ');
+    if(res.ok){ saveDB(); refreshAll(); }
   };
   if($('#useDyn')) $('#useDyn').onchange = e => { USE_DYNAMIC = e.target.checked; refreshAll(); };
   if($('#useSquad')) $('#useSquad').onchange = e => { USE_SQUAD = e.target.checked; refreshAll(); };
 }
-bindValidation(); fillVSel(); toggleView(); renderMetrics(); renderHistory();
+bindValidation(); fillVSel(); toggleView(); renderMetrics(); renderHistory(); bindAdmin(); fillAdminSelects();
+renderAccount(); refreshAdminRole();
 
 /* ================== ОБНОВЛЕНИЕ ВСЕГО ================== */
 function refreshAll(){
@@ -1398,10 +1938,17 @@ function refreshAll(){
   renderH2H();
   syncH2HFromCalc();
   computeProbs(); saveDB(); renderProbs();
-fillVSel(); toggleView(); renderMetrics(); renderHistory();
+fillVSel(); toggleView(); renderMetrics(); renderHistory(); renderCalibNow(); renderPredictions(); fillAdminSelects();
 }
+mergeSharedMatches();
 refreshAll();
 showDbResetNotice();
+remoteMergeMatches().then(r => {
+  if(r && r.ok && r.added){
+    renderMetrics(); renderHistory(); renderPredictions();
+  }
+  if(typeof renderAdmin === 'function') renderAdmin();
+});
 
 /* ================== ТЕМА: светлая / тёмная ================== */
 (function(){

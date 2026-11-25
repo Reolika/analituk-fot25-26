@@ -2,8 +2,11 @@
    Чистые функции прогноза: не читают и не пишут DOM, работают с DB.
    Отдельный слой даёт возможность автотестировать модель без браузера. */
 function lambdas(hi, ai, settings){
-  const s = settings || DB.settings;
   const H = DB.teams[hi], A = DB.teams[ai];
+  // параметры калибровки берём по дивизиону домашней команды (РПЛ/ФНЛ),
+  // если явные настройки не переданы
+  const div = divOf(H);
+  const s = settings || (DB.league && DB.league[div]) || DB.settings;
   // средняя атака берётся по дивизионам участвующих команд — так РПЛ и ФНЛ не искажают друг друга
   const divs = [...new Set([divOf(H), divOf(A)])];
   const pool = DB.teams.filter(t => divs.includes(divOf(t)));

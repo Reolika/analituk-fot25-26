@@ -53,6 +53,7 @@ function validationMetrics(){
       fact: factOutcome(m.gh, m.ga),
       outcome: p.outcome,
       probs: p.probs,
+      round: Number.isFinite(+m.round) ? +m.round : null,
       w: p.probs[0], d: p.probs[1], l: p.probs[2]
     });
   });
@@ -67,7 +68,43 @@ function validationMetrics(){
   const conf = [[0,0,0],[0,0,0],[0,0,0]];
   rows.forEach(r => conf[r.outcome][r.fact]++);
 
-  return { n, skipped, acc, cal, conf };
+  // log-loss по фактическому исходу (меньше — лучше)
+  const logLoss = -rows.reduce((s,r) => s + Math.log(Math.max(1e-9, r.probs[r.fact])), 0) / n;
+
+  // Brier score по трём исходам (меньше — лучше)
+  const brier = rows.reduce((s,r) => {
+    const y = [0,0,0]; y[r.fact] = 1;
+    return s + (r.probs[0]-y[0])**2 + (r.probs[1]-y[1])**2 + (r.probs[2]-y[2])**2;
+  }, 0) / n;
+
+  // калибровка по бинам: для каждой вероятности исхода сравниваем прогноз и факт
+  const bins = Array.from({length:10}, (_,i)=>({ lo:i/10, hi:(i+1)/10, n:0, sumP:0, sumY:0 }));
+  rows.forEach(r => {
+    [0,1,2].forEach(k => {
+      const p = Math.min(1, Math.max(0, r.probs[k]));
+      const y = (r.fact === k) ? 1 : 0;
+      const b = bins[Math.min(9, Math.floor(p*10))];
+      b.n++; b.sumP += p; b.sumY += y;
+    });
+  });
+  const reliability = bins.filter(b => b.n > 0).map(b => ({
+    lo:b.lo, hi:b.hi, n:b.n, pred:b.sumP/b.n, fact:b.sumY/b.n
+  }));
+
+  // точность по турам (только матчи с указанным туром)
+  const byRound = {};
+  rows.forEach(r => {
+    if(r.round === null) return;
+    const b = byRound[r.round] || (byRound[r.round] = { round:r.round, n:0, hits:0, ll:0 });
+    b.n++;
+    if(r.outcome === r.fact) b.hits++;
+    b.ll += -Math.log(Math.max(1e-9, r.probs[r.fact]));
+  });
+  const rounds = Object.values(byRound)
+    .map(b => ({ round:b.round, n:b.n, acc:b.hits/b.n, logLoss:b.ll/b.n }))
+    .sort((a,b) => a.round - b.round);
+
+  return { n, skipped, acc, cal, conf, logLoss, brier, reliability, rounds };
 }
 
 /* ---------- ИМПОРТ CSV ----------
@@ -97,6 +134,31 @@ function importHistoryCSV(text){
   return { added, bad, skipped: bad, dupSkipped, total: HISTORY.length };
 }
 
+/* ---------- СБОРКА matches.js ИЗ CSV (с проверкой имён) ----------
+   Строки: home,away,gh,ga[,round] или через ';'. Команды сверяются с базой
+   по нормализованному имени; неизвестные попадают в отчёт и не публикуются. */
+function buildMatchesFromCSV(text){
+  const map = {}; DB.teams.forEach(t => map[normName(t.name)] = t.name);
+  const lines = String(text || '').split('\n').map(s => s.trim()).filter(Boolean);
+  const items = []; const unknown = new Set(); const seen = new Set();
+  let bad = 0, dup = 0;
+  lines.forEach(line => {
+    const parts = line.split(/[;,]/).map(s => s.trim());
+    if(parts.length < 4){ bad++; return; }
+    const [h, a, ghS, gaS, roundS] = parts;
+    const H = map[normName(h)], A = map[normName(a)];
+    if(!H || !A){ if(h && !H) unknown.add(h); if(a && !A) unknown.add(a); return; }
+    const gh = Number(ghS), ga = Number(gaS);
+    if(!Number.isInteger(gh) || !Number.isInteger(ga) || gh < 0 || ga < 0){ bad++; return; }
+    const round = roundS !== undefined && roundS !== '' && Number.isFinite(+roundS) ? +roundS : 1;
+    const key = normName(H) + '|' + normName(A) + '|' + round;
+    if(seen.has(key)){ dup++; return; }
+    seen.add(key);
+    items.push({ home:H, away:A, gh, ga, round });
+  });
+  return { items, unknown:[...unknown], bad, dup };
+}
+
 /* ---------- ДОБАВЛЕНИЕ / СБРОС ---------- */
 function addHistoryMatch(home, away, gh, ga, round){
   if(isDuplicate(home, away, round))
@@ -108,8 +170,91 @@ function addHistoryMatch(home, away, gh, ga, round){
   return { ok:true, msg:'Матч добавлен.' };
 }
 function clearHistory(){
-  HISTORY = [];
+  // «Очистить» убирает только личные матчи; общая база (matches.js) остаётся
+  if(typeof HISTORY !== 'undefined'){
+    HISTORY = HISTORY.filter(m => m && m.shared);
+  } else {
+    HISTORY = [];
+  }
   saveHistory();
+}
+
+/* ---------- ОБЩАЯ БАЗА МАТЧЕЙ (matches.js) ----------
+   Матчи из файла matches.js видны всем посетителям. При загрузке они добавляются
+   в историю с флагом shared:true; дубликаты по (дом, гость, тур) не добавляются. */
+function mergeSharedMatches(){
+  if(typeof SHARED_MATCHES === 'undefined' || !Array.isArray(SHARED_MATCHES)) return 0;
+  let added = 0;
+  SHARED_MATCHES.forEach(m => {
+    if(!m || !m.home || !m.away) return;
+    if(!Number.isFinite(+m.gh) || !Number.isFinite(+m.ga)) return;
+    const round = Number.isFinite(+m.round) ? +m.round : 1;
+    if(isDuplicate(m.home, m.away, round)) return;
+    HISTORY.push({ home:m.home, away:m.away, gh:+m.gh, ga:+m.ga, round, shared:true });
+    added++;
+  });
+  if(added) saveHistory();
+  return added;
+}
+
+/* ---------- ИСТОРИЯ ПРОГНОЗОВ ----------
+   Пользователь сохраняет прогноз до матча; когда результат появляется в истории,
+   прогноз автоматически сверяется с фактом (исход, Brier, log-loss). */
+const PRED_KEY = 'rpl2627_predictions_v1';
+function loadPredictions(){
+  try{
+    const d = JSON.parse(localStorage.getItem(PRED_KEY));
+    if(Array.isArray(d)) return d.filter(p => p && p.home && p.away && Array.isArray(p.probs) && p.probs.length === 3);
+  }catch(e){ console.warn('Аналитика РПЛ: не удалось прочитать прогнозы.', e); }
+  return [];
+}
+function savePredictions(){ localStorage.setItem(PRED_KEY, JSON.stringify(PREDICTIONS)); }
+let PREDICTIONS = loadPredictions();
+
+function addPrediction(home, away, probs, lh, la){
+  const key = normName(home) + '|' + normName(away);
+  PREDICTIONS = PREDICTIONS.filter(p => (normName(p.home)+'|'+normName(p.away)) !== key);
+  PREDICTIONS.push({
+    home, away,
+    probs: [+probs[0], +probs[1], +probs[2]],
+    lh: Number.isFinite(+lh) ? +lh : null,
+    la: Number.isFinite(+la) ? +la : null,
+    ts: Date.now()
+  });
+  savePredictions();
+  return PREDICTIONS.length;
+}
+function clearPredictions(){ PREDICTIONS = []; savePredictions(); }
+
+function evaluatePredictions(){
+  const rows = [];
+  PREDICTIONS.forEach(p => {
+    const key = normName(p.home) + '|' + normName(p.away);
+    const m = HISTORY.find(h => (normName(h.home)+'|'+normName(h.away)) === key);
+    const pred = p.probs.indexOf(Math.max(...p.probs));
+    if(!m){
+      rows.push({ home:p.home, away:p.away, probs:p.probs, pred, fact:null, hit:null, pFact:null, brier:null });
+      return;
+    }
+    const fact = factOutcome(m.gh, m.ga);
+    const y = [0,0,0]; y[fact] = 1;
+    const brier = (p.probs[0]-y[0])**2 + (p.probs[1]-y[1])**2 + (p.probs[2]-y[2])**2;
+    rows.push({
+      home:p.home, away:p.away, probs:p.probs, pred, fact,
+      gh:m.gh, ga:m.ga, hit: pred === fact,
+      pFact: p.probs[fact], brier
+    });
+  });
+  const done = rows.filter(r => r.fact !== null);
+  const n = done.length;
+  const hits = done.filter(r => r.hit).length;
+  return {
+    rows, n, hits,
+    acc: n ? hits / n : 0,
+    brier: n ? done.reduce((s,r)=>s+r.brier, 0) / n : 0,
+    logLoss: n ? -done.reduce((s,r)=>s+Math.log(Math.max(1e-9, r.pFact)),0)/n : 0,
+    pending: rows.length - n
+  };
 }
 
 /* ---------- КАЛИБРОВКА (Этап 2) ----------
@@ -124,12 +269,20 @@ function calibrationCandidates(){
     dixonColes:  [-0.20, -0.15, -0.10, -0.05, 0.00]
   };
 }
-function logLikelihoodFor(settings){
+function leagueSettings(div){
+  if(!DB.league) DB.league = {};
+  if(!DB.league[div] || !Number.isFinite(DB.league[div].homeBoost)){
+    DB.league[div] = { ...(DB.settings || { homeBoost:1.10, awayPenalty:0.95, dixonColes:-0.08 }) };
+  }
+  return DB.league[div];
+}
+function logLikelihoodFor(settings, div){
   const map = {}; DB.teams.forEach((t,i)=> map[normName(t.name)] = i);
   let sum = 0, used = 0;
   HISTORY.forEach(m => {
     const hi = map[normName(m.home)], ai = map[normName(m.away)];
     if(hi === undefined || ai === undefined || hi === ai) return;
+    if(div && divOf(DB.teams[hi]) !== div) return;
     const { lh, la } = lambdas(hi, ai, settings);
     const r = matchProbs(lh, la, settings);
     const pFact = r[['pw','pd','pl'][factOutcome(m.gh, m.ga)]];
@@ -138,29 +291,32 @@ function logLikelihoodFor(settings){
   });
   return { sum, used };
 }
-function calibrateParams(){
+function calibrateDivision(div){
   if(!DB.settings) DB.settings = { homeBoost:1.10, awayPenalty:0.95, dixonColes:-0.08 };
-  const cand = calibrationCandidates();
-  const base = logLikelihoodFor(DB.settings);
-  if(base.used < 5) return { ok:false, used: base.used, need: 5 };
+  const start = leagueSettings(div);
+  const base = logLikelihoodFor(start, div);
+  if(base.used < 5) return { ok:false, div, used: base.used, need: 5 };
 
+  const cand = calibrationCandidates();
   let best = null, bestLL = -Infinity;
   cand.homeBoost.forEach(hb => cand.awayPenalty.forEach(ap => cand.dixonColes.forEach(dc => {
-    const settings = { ...DB.settings, homeBoost:hb, awayPenalty:ap, dixonColes:dc };
-    const { sum, used } = logLikelihoodFor(settings);
+    const settings = { ...start, homeBoost:hb, awayPenalty:ap, dixonColes:dc };
+    const { sum, used } = logLikelihoodFor(settings, div);
     if(used < 5) return;
     if(sum > bestLL){ bestLL = sum; best = { homeBoost:hb, awayPenalty:ap, dixonColes:dc, used, logLik:sum }; }
   })));
-  if(!best) return { ok:false, used: base.used, need: 5 };
+  if(!best) return { ok:false, div, used: base.used, need: 5 };
 
-  DB.settings.homeBoost = best.homeBoost;
-  DB.settings.awayPenalty = best.awayPenalty;
-  DB.settings.dixonColes = best.dixonColes;
-
+  DB.league[div] = { homeBoost:best.homeBoost, awayPenalty:best.awayPenalty, dixonColes:best.dixonColes };
   const gainPct = base.sum !== 0
     ? Math.round(((best.logLik - base.sum) / Math.abs(base.sum)) * 1000) / 10
     : 0;
-  return { ok:true, ...best, baseLogLik: base.sum, gainPct };
+  return { ok:true, div, ...best, baseLogLik: base.sum, gainPct };
+}
+function calibrateParams(){
+  const rpl = calibrateDivision('rpl');
+  const fnl = calibrateDivision('fnl');
+  return { ok: rpl.ok || fnl.ok, rpl, fnl };
 }
 
 /* ================== ДИНАМИЧЕСКАЯ СИЛА (Этап 3) ==================
