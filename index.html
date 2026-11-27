@@ -341,13 +341,36 @@ td,th{font-variant-numeric:tabular-nums}
   .rel-chart{gap:6px;padding:8px}
   .rel-bar{height:90px}
   .rel-col{min-width:44px}
-  .scores td{font-size:11px;padding:5px 3px}
-  .scores th{font-size:10px;padding:5px 6px}
   .big{font-size:22px}
   .res .big{font-size:22px}
   .toggle-row{grid-template-columns:1fr}
-  .theme-toggle{width:32px;height:32px;font-size:14px}
   .grid{grid-template-columns:1fr}
+  .top{padding:12px;gap:10px}
+  .logo{flex:1 1 auto;min-width:0;gap:10px}
+  .logo > div:last-child{min-width:0}
+  .logo-main{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .logo-sub{display:none}
+  .emblem-img{width:40px;height:40px;flex:0 0 40px}
+  .header-right{gap:6px;flex:0 0 auto}
+  .season{font-size:10px;padding:4px 8px;white-space:nowrap}
+  .account-btn{max-width:90px;padding:6px 9px;font-size:11px}
+  .theme-toggle{width:30px;height:30px;font-size:13px}
+  input,select,textarea{font-size:16px}
+  .btn{padding:10px 14px}
+  .scores{width:100%;border-spacing:2px}
+  .scores td{font-size:10px;padding:4px 2px;min-width:0}
+  .scores th{font-size:10px;padding:4px 5px;min-width:0}
+  #baseTable th:nth-child(3),#baseTable td:nth-child(3),
+  #baseTable th:nth-child(4),#baseTable td:nth-child(4),
+  #baseTable th:nth-child(8),#baseTable td:nth-child(8){display:none}
+  #vMetrics table th{font-size:9px;padding:5px 3px;line-height:1.15}
+  #vMetrics table td{font-size:10px;padding:5px 3px}
+}
+@media(max-width:480px){
+  .top{padding:10px 10px}
+  .season{display:none}
+  .logo-main{font-size:15px}
+  .account-btn{max-width:76px}
 }
 </style>
 
