@@ -10,11 +10,27 @@ function loadHistory(){
     const d = JSON.parse(localStorage.getItem(HIST_KEY));
     if(d && Array.isArray(d))
       return d.filter(m => m && m.home && m.away && Number.isFinite(m.gh) && Number.isFinite(m.ga));
-  }catch(e){ console.warn('Аналитика РПЛ: не удалось прочитать историю — пусто.', e); }
+  }catch(e){ console.warn('Аналитика РПЛ: не удалось прочитать историю - пусто.', e); }
   return [];
 }
-function saveHistory(){ localStorage.setItem(HIST_KEY, JSON.stringify(HISTORY)); }
+let saveHistory = function(){
+  localStorage.setItem(HIST_KEY, JSON.stringify(HISTORY));
+  queueCloudPush();
+};
 let HISTORY = loadHistory();
+
+// флаг защиты от рекурсивного запуска облачной выгрузки из saveHistory/savePredictions
+let __cloudPushBusy = false;
+function queueCloudPush(){
+  if(typeof LINKED_TO_ACCOUNT === 'undefined' || !LINKED_TO_ACCOUNT) return;
+  if(__cloudPushBusy) return;
+  if(typeof window === 'undefined' || typeof document === 'undefined') return; // не в браузере
+  __cloudPushBusy = true;
+  setTimeout(() => {
+    const fn = typeof pushDirtyToCloud !== 'undefined' ? pushDirtyToCloud : (typeof window.pushDirtyToCloud === 'function' ? window.pushDirtyToCloud : null);
+    Promise.resolve(fn ? fn() : null).catch(()=>{}).finally(() => { __cloudPushBusy = false; });
+  }, 10);
+}
 
 // фактический исход: 0 = победа хозяев, 1 = ничья, 2 = победа гостей
 const factOutcome = (gh, ga) => gh > ga ? 0 : (gh < ga ? 2 : 1);
@@ -208,7 +224,7 @@ function loadPredictions(){
   }catch(e){ console.warn('Аналитика РПЛ: не удалось прочитать прогнозы.', e); }
   return [];
 }
-function savePredictions(){ localStorage.setItem(PRED_KEY, JSON.stringify(PREDICTIONS)); }
+function savePredictions(){ localStorage.setItem(PRED_KEY, JSON.stringify(PREDICTIONS)); queueCloudPush(); }
 let PREDICTIONS = loadPredictions();
 
 function addPrediction(home, away, probs, lh, la){
@@ -373,4 +389,100 @@ function dynXg(teamIdx, isHome, windowLen){
     if(s && s.n >= 1) return s;
   }
   return null;   // статика обрабатывается в lambdas
+}
+
+/* ================== ПРИВЯЗКА К АККАУНТУ (облако-как-источник) ==================
+   Пока пользователь не вошёл, личная история и прогнозы живут только в localStorage.
+   После входа их источником становится облако (таблицы user_history / user_predictions):
+     - при входе локальные данные один раз сливаются в облако, затем облако перезаписывает
+       локальный кэш (то есть облако — источник правды);
+     - все последующие правки пишутся и в облако, и в локальный кэш;
+     - при выходе кэш остаётся на устройстве, но владельцем данных снова становится
+       локальное хранилище, и облако больше не трогается, пока пользователь не войдёт снова.
+   Флаг LINKED_TO_ACCOUNT показывает, что текущие локальные HISTORY/PREDICTIONS
+   уже синхронизированы с облаком текущего пользователя. */
+
+let LINKED_TO_ACCOUNT = false;   // ид аккаунта, с которым синхронизированы данные (или null)
+
+// подготовить файл личных матчей для облака (без общих shared-записей)
+function myPersonalHistory(){
+  return HISTORY.filter(m => m && !m.shared).map(m => ({
+    home: m.home, away: m.away, gh: +m.gh, ga: +m.ga, round: +m.round
+  }));
+}
+
+// Слить локальные личные матчи в облако: строки, которых ещё нет по паре+туру, добавить.
+// Затем перезаписать локальный кэш данными облака (source of truth).
+async function syncMyHistoryToCloud(){
+  if(typeof remoteSignedIn !== 'function' || !remoteSignedIn()) return { ok:false, reason:'no-signin' };
+  try{
+    const local = myPersonalHistory();
+    const cloud = await remoteLoadMyHistory();
+    // объединить: облако дополняем локальными, которых там нет
+    const cloudKeys = new Set(cloud.map(m => matchKey(m.home, m.away, m.round)));
+    const merged = cloud.map(m => ({ home:m.home, away:m.away, gh:+m.gh, ga:+m.ga, round:+m.round }));
+    local.forEach(m => {
+      const k = matchKey(m.home, m.away, m.round);
+      if(!cloudKeys.has(k)) merged.push(m);
+    });
+    await remoteReplaceMyHistory(merged);
+    // облако — источник правды: пересчитать локальный кэш
+    const fresh = merged.map(m => ({ home:m.home, away:m.away, gh:+m.gh, ga:+m.ga, round:+m.round }));
+    HISTORY = HISTORY.filter(m => m && m.shared).concat(fresh.filter(m =>
+      !HISTORY.some(h => h && h.shared && matchKey(h.home,h.away,h.round) === matchKey(m.home,m.away,m.round))
+    ));
+    saveHistory();
+    return { ok:true };
+  }catch(e){
+    console.warn('Supabase: не удалось синхронизировать историю.', e);
+    return { ok:false, reason:'error', error:String(e) };
+  }
+}
+
+// Слить локальные прогнозы в облако: прогнозы по паре команд перезаписываются.
+async function syncMyPredictionsToCloud(){
+  if(typeof remoteSignedIn !== 'function' || !remoteSignedIn()) return { ok:false, reason:'no-signin' };
+  try{
+    const cloud = await remoteLoadMyPredictions();
+    const byKey = {};
+    cloud.forEach(p => byKey[remotePredKey(p.home, p.away)] = { home:p.home, away:p.away, probs:[+p.probs[0], +p.probs[1], +p.probs[2]], lh:+p.lh, la:+p.la });
+    PREDICTIONS.forEach(p => byKey[remotePredKey(p.home, p.away)] = { home:p.home, away:p.away, probs:[+p.probs[0], +p.probs[1], +p.probs[2]], lh:+p.lh, la:+p.la });
+    const merged = Object.values(byKey);
+    await remoteReplaceMyPredictions(merged);
+    // перечитать облако как источник правды
+    const fresh = await remoteLoadMyPredictions();
+    PREDICTIONS = fresh.map(p => ({ home:p.home, away:p.away, probs:[+p.probs[0], +p.probs[1], +p.probs[2]], lh:(p.lh==null?null:+p.lh), la:(p.la==null?null:+p.la), ts:Date.now() }));
+    savePredictions();
+    return { ok:true };
+  }catch(e){
+    console.warn('Supabase: не удалось синхронизировать прогнозы.', e);
+    return { ok:false, reason:'error', error:String(e) };
+  }
+}
+
+// Полная привязка при входе: слить историю и прогнозы в облако и пометить активную связь.
+async function linkAccountOnSignIn(){
+  if(typeof remoteSignedIn !== 'function' || !remoteSignedIn()) return { ok:false, reason:'no-signin' };
+  const h = await syncMyHistoryToCloud();
+  const p = await syncMyPredictionsToCloud();
+  if(h.ok && p.ok) LINKED_TO_ACCOUNT = true;
+  return { ok:h.ok && p.ok, history:h, predictions:p };
+}
+
+// Записать текущие локальные данные в облако (используется после каждого изменения при активной связи).
+async function pushDirtyToCloud(){
+  if(!LINKED_TO_ACCOUNT) return;
+  try{
+    if(typeof remoteSignedIn === 'function' && remoteSignedIn()){
+      const h = await remoteReplaceMyHistory(myPersonalHistory());
+      const p = await remoteReplaceMyPredictions(PREDICTIONS.map(x => ({
+        home:x.home, away:x.away, probs:[+x.probs[0], +x.probs[1], +x.probs[2]], lh:+x.lh, la:+x.la
+      })));
+      void h; void p;
+    }
+  }catch(e){ console.warn('Supabase: не удалось записать изменения в облако.', e); }
+}
+// при разлогине снять флаг синхронизации
+function unlinkAccount(){
+  LINKED_TO_ACCOUNT = false;
 }

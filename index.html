@@ -802,6 +802,7 @@ function renderAccount(){
       const lo = document.getElementById('accLogout');
       if(lo) lo.onclick = async () => {
         if(typeof remoteSignOut === 'function') await remoteSignOut();
+        if(typeof unlinkAccount === 'function') unlinkAccount();
         AUTH_IS_ADMIN = false;
         renderAccount();
         if(typeof renderAdmin === 'function') renderAdmin();
@@ -882,6 +883,8 @@ async function submitAuth(){
       const r = await remoteSignUp(email, pass);
       if(r && r.signedIn){
         await refreshAdminRole();
+        await linkAccountOnSignIn();
+        refreshAll();
         say('Аккаунт создан, вы вошли.', true);
         setTimeout(closeAuth, 900);
       } else {
@@ -890,6 +893,8 @@ async function submitAuth(){
     } else {
       await remoteSignIn(email, pass);
       await refreshAdminRole();
+      await linkAccountOnSignIn();
+      refreshAll();
       say('Вы вошли.', true);
       setTimeout(closeAuth, 700);
     }
@@ -2047,6 +2052,17 @@ remoteMergeMatches().then(r => {
   }
   if(typeof renderAdmin === 'function') renderAdmin();
 });
+// Восстановленная сессия: локальные данные уже связаны с аккаунтом.
+// Подтягиваем свежие личные данные из облака, чтобы изменения с другого
+// устройства появились и здесь.
+(function(){
+  if(typeof remoteSignedIn === 'function' && remoteSignedIn() &&
+     typeof linkAccountOnSignIn === 'function'){
+    linkAccountOnSignIn().then(() => {
+      if(typeof refreshAll === 'function') refreshAll();
+    }).catch(()=>{});
+  }
+})();
 
 /* ================== ТЕМА: светлая / тёмная ================== */
 (function(){
