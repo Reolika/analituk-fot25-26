@@ -1,0 +1,15 @@
+{
+  "name": "analituk-fot25-26",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Аналитика футбола России: калькулятор исходов и прогнозная модель",
+  "scripts": {
+    "lint": "eslint .",
+    "syntax": "node scripts/check-syntax.mjs",
+    "test": "node scripts/check-syntax.mjs && eslint .",
+    "serve": "node scripts/serve.mjs"
+  },
+  "devDependencies": {
+    "eslint": "^9.17.0"
+  }
+}
