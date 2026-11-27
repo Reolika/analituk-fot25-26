@@ -14,7 +14,6 @@
   const ok = (name, pass, extra='') => log.push((pass?'✅':'❌ FAIL ') + ' ' + name + (extra ? ' — ' + extra : ''));
 
   // контекст, нужный чистым функциям (локально без localStorage и DOM)
-  const KEY = 'rpl2526_test';
   DB = { teams: JSON.parse(JSON.stringify(DEFAULT_TEAMS)),
          settings: {homeBoost:1.10, awayPenalty:0.95, dixonColes:-0.08},
          probs: null };

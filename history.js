@@ -13,21 +13,25 @@ function loadHistory(){
   }catch(e){ console.warn('Аналитика РПЛ: не удалось прочитать историю - пусто.', e); }
   return [];
 }
-let saveHistory = function(){
-  localStorage.setItem(HIST_KEY, JSON.stringify(HISTORY));
-  queueCloudPush();
-};
 let HISTORY = loadHistory();
 
+// Флаг связи с аккаунтом объявлен до saveHistory/queueCloudPush: иначе обращение
+// к нему до инициализации дало бы TDZ-ошибку при сохранении в самом начале загрузки.
+let LINKED_TO_ACCOUNT = false;
 // флаг защиты от рекурсивного запуска облачной выгрузки из saveHistory/savePredictions
 let __cloudPushBusy = false;
+
+function saveHistory(){
+  localStorage.setItem(HIST_KEY, JSON.stringify(HISTORY));
+  queueCloudPush();
+}
 function queueCloudPush(){
-  if(typeof LINKED_TO_ACCOUNT === 'undefined' || !LINKED_TO_ACCOUNT) return;
+  if(!LINKED_TO_ACCOUNT) return;
   if(__cloudPushBusy) return;
   if(typeof window === 'undefined' || typeof document === 'undefined') return; // не в браузере
   __cloudPushBusy = true;
   setTimeout(() => {
-    const fn = typeof pushDirtyToCloud !== 'undefined' ? pushDirtyToCloud : (typeof window.pushDirtyToCloud === 'function' ? window.pushDirtyToCloud : null);
+    const fn = typeof pushDirtyToCloud === 'function' ? pushDirtyToCloud : null;
     Promise.resolve(fn ? fn() : null).catch(()=>{}).finally(() => { __cloudPushBusy = false; });
   }, 10);
 }
@@ -150,31 +154,6 @@ function importHistoryCSV(text){
   return { added, bad, skipped: bad, dupSkipped, total: HISTORY.length };
 }
 
-/* ---------- СБОРКА matches.js ИЗ CSV (с проверкой имён) ----------
-   Строки: home,away,gh,ga[,round] или через ';'. Команды сверяются с базой
-   по нормализованному имени; неизвестные попадают в отчёт и не публикуются. */
-function buildMatchesFromCSV(text){
-  const map = {}; DB.teams.forEach(t => map[normName(t.name)] = t.name);
-  const lines = String(text || '').split('\n').map(s => s.trim()).filter(Boolean);
-  const items = []; const unknown = new Set(); const seen = new Set();
-  let bad = 0, dup = 0;
-  lines.forEach(line => {
-    const parts = line.split(/[;,]/).map(s => s.trim());
-    if(parts.length < 4){ bad++; return; }
-    const [h, a, ghS, gaS, roundS] = parts;
-    const H = map[normName(h)], A = map[normName(a)];
-    if(!H || !A){ if(h && !H) unknown.add(h); if(a && !A) unknown.add(a); return; }
-    const gh = Number(ghS), ga = Number(gaS);
-    if(!Number.isInteger(gh) || !Number.isInteger(ga) || gh < 0 || ga < 0){ bad++; return; }
-    const round = roundS !== undefined && roundS !== '' && Number.isFinite(+roundS) ? +roundS : 1;
-    const key = normName(H) + '|' + normName(A) + '|' + round;
-    if(seen.has(key)){ dup++; return; }
-    seen.add(key);
-    items.push({ home:H, away:A, gh, ga, round });
-  });
-  return { items, unknown:[...unknown], bad, dup };
-}
-
 /* ---------- ДОБАВЛЕНИЕ / СБРОС ---------- */
 function addHistoryMatch(home, away, gh, ga, round){
   if(isDuplicate(home, away, round))
@@ -186,31 +165,13 @@ function addHistoryMatch(home, away, gh, ga, round){
   return { ok:true, msg:'Матч добавлен.' };
 }
 function clearHistory(){
-  // «Очистить» убирает только личные матчи; общая база (matches.js) остаётся
+  // «Очистить» убирает только личные матчи; общая база из Supabase остаётся
   if(typeof HISTORY !== 'undefined'){
     HISTORY = HISTORY.filter(m => m && m.shared);
   } else {
     HISTORY = [];
   }
   saveHistory();
-}
-
-/* ---------- ОБЩАЯ БАЗА МАТЧЕЙ (matches.js) ----------
-   Матчи из файла matches.js видны всем посетителям. При загрузке они добавляются
-   в историю с флагом shared:true; дубликаты по (дом, гость, тур) не добавляются. */
-function mergeSharedMatches(){
-  if(typeof SHARED_MATCHES === 'undefined' || !Array.isArray(SHARED_MATCHES)) return 0;
-  let added = 0;
-  SHARED_MATCHES.forEach(m => {
-    if(!m || !m.home || !m.away) return;
-    if(!Number.isFinite(+m.gh) || !Number.isFinite(+m.ga)) return;
-    const round = Number.isFinite(+m.round) ? +m.round : 1;
-    if(isDuplicate(m.home, m.away, round)) return;
-    HISTORY.push({ home:m.home, away:m.away, gh:+m.gh, ga:+m.ga, round, shared:true });
-    added++;
-  });
-  if(added) saveHistory();
-  return added;
 }
 
 /* ---------- ИСТОРИЯ ПРОГНОЗОВ ----------
@@ -402,8 +363,6 @@ function dynXg(teamIdx, isHome, windowLen){
    Флаг LINKED_TO_ACCOUNT показывает, что текущие локальные HISTORY/PREDICTIONS
    уже синхронизированы с облаком текущего пользователя. */
 
-let LINKED_TO_ACCOUNT = false;   // ид аккаунта, с которым синхронизированы данные (или null)
-
 // подготовить файл личных матчей для облака (без общих shared-записей)
 function myPersonalHistory(){
   return HISTORY.filter(m => m && !m.shared).map(m => ({
@@ -482,7 +441,15 @@ async function pushDirtyToCloud(){
     }
   }catch(e){ console.warn('Supabase: не удалось записать изменения в облако.', e); }
 }
-// при разлогине снять флаг синхронизации
+// при разлогине снять флаг синхронизации и убрать личный кэш устройства,
+// иначе записи одного пользователя при следующем входе уедут в чужой аккаунт.
+// Данные не теряются: если связь была активна, они уже лежат в облаке.
 function unlinkAccount(){
+  const wasLinked = LINKED_TO_ACCOUNT;
   LINKED_TO_ACCOUNT = false;
+  if(!wasLinked) return;           // не синхронизировано — оставляем данные на устройстве
+  HISTORY = HISTORY.filter(m => m && m.shared);
+  PREDICTIONS = [];
+  saveHistory();
+  savePredictions();
 }

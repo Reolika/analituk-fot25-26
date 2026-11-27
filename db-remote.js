@@ -27,6 +27,60 @@ function remoteUserEmail(){
   return (REMOTE.session && REMOTE.session.user && REMOTE.session.user.email) || null;
 }
 
+// exp из JWT — на случай, если сервер не прислал expires_at
+function remoteTokenExp(token){
+  try{
+    const p = JSON.parse(atob(String(token || '').split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return Number.isFinite(+p.exp) ? +p.exp : 0;
+  }catch(e){ return 0; }
+}
+// токен пора обновлять (запас 30 секунд, чтобы не ловить 401 на границе)
+function remoteAccessExpired(){
+  const s = REMOTE.session;
+  if(!s || !s.access_token) return true;
+  const exp = Number.isFinite(+s.expires_at) && +s.expires_at ? +s.expires_at : remoteTokenExp(s.access_token);
+  return !exp || (Date.now() / 1000) > exp - 30;
+}
+// access_token живёт час; без обновления по refresh_token все запросы получают 401
+async function remoteRefreshSession(){
+  const s = REMOTE.session;
+  if(!remoteConfigured() || !s || !s.refresh_token) return false;
+  try{
+    const res = await fetch(REMOTE.url + '/auth/v1/token?grant_type=refresh_token', {
+      method: 'POST',
+      headers: { 'apikey': REMOTE.key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: s.refresh_token })
+    });
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok || !data.access_token) return false;
+    const next = Object.assign({}, s, data);
+    if(!next.user && s.user) next.user = s.user;
+    remoteSaveSession(next);
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+// сессия больше не годится: чистим её и возвращаем интерфейс в гостевой режим
+function remoteDropSession(){
+  remoteSaveSession(null);
+  if(typeof unlinkAccount === 'function') unlinkAccount();
+  if(typeof refreshAdminRole === 'function'){ try{ refreshAdminRole(); }catch(e){} }
+  else if(typeof renderAccount === 'function'){ try{ renderAccount(); }catch(e){} }
+}
+// Авторизованный запрос: обновляет истёкший токен и один раз повторяет запрос при 401.
+// build() возвращает параметры fetch, поэтому заголовки собираются заново — уже с новым токеном.
+async function remoteAuthFetch(url, build){
+  if(!REMOTE.session) return fetch(url, build());
+  if(remoteAccessExpired()) await remoteRefreshSession();
+  let res = await fetch(url, build());
+  if(res.status === 401 && REMOTE.session && REMOTE.session.refresh_token){
+    if(await remoteRefreshSession()) res = await fetch(url, build());
+  }
+  if(res.status === 401) remoteDropSession();
+  return res;
+}
+
 function remoteHeaders(withAuth){
   const h = { 'apikey': REMOTE.key, 'Content-Type': 'application/json' };
   if(withAuth && REMOTE.session && REMOTE.session.access_token){
@@ -75,9 +129,9 @@ async function remoteIsAdmin(){
   if(!remoteConfigured() || !REMOTE.session) return false;
   const email = remoteUserEmail();
   if(!email) return false;
-  const res = await fetch(
+  const res = await remoteAuthFetch(
     REMOTE.url + '/rest/v1/admins?select=email&email=eq.' + encodeURIComponent(email),
-    { headers: remoteHeaders(true) }
+    () => ({ headers: remoteHeaders(true) })
   );
   if(!res.ok) return false;
   const rows = await res.json().catch(() => []);
@@ -97,11 +151,11 @@ async function remoteLoadMatches(){
 async function remoteAddMatch(m){
   if(!remoteConfigured()) throw new Error('Бэкенд не настроен');
   if(!REMOTE.session) throw new Error('Требуется вход администратора');
-  const res = await fetch(REMOTE.url + '/rest/v1/matches', {
+  const res = await remoteAuthFetch(REMOTE.url + '/rest/v1/matches', () => ({
     method: 'POST',
     headers: Object.assign(remoteHeaders(true), { 'Prefer': 'return=representation' }),
     body: JSON.stringify({ home: m.home, away: m.away, gh: m.gh, ga: m.ga, round: m.round })
-  });
+  }));
   const data = await res.json().catch(() => ({}));
   if(!res.ok) throw new Error((data.message || data.hint || 'Запись не удалась') + ' (' + res.status + ')');
   return Array.isArray(data) ? data[0] : data;
@@ -111,11 +165,11 @@ async function remoteAddMatches(list){
   if(!remoteConfigured()) throw new Error('Бэкенд не настроен');
   if(!REMOTE.session) throw new Error('Требуется вход администратора');
   if(!Array.isArray(list) || !list.length) return true;
-  const res = await fetch(REMOTE.url + '/rest/v1/matches', {
+  const res = await remoteAuthFetch(REMOTE.url + '/rest/v1/matches', () => ({
     method: 'POST',
     headers: Object.assign(remoteHeaders(true), { 'Prefer': 'return=minimal' }),
     body: JSON.stringify(list)
-  });
+  }));
   if(!res.ok){
     const data = await res.json().catch(() => ({}));
     throw new Error((data.message || data.hint || 'Пакетная запись не удалась') + ' (' + res.status + ')');
@@ -126,10 +180,10 @@ async function remoteAddMatches(list){
 async function remoteDeleteMatch(id){
   if(!remoteConfigured()) throw new Error('Бэкенд не настроен');
   if(!REMOTE.session) throw new Error('Требуется вход администратора');
-  const res = await fetch(REMOTE.url + '/rest/v1/matches?id=eq.' + encodeURIComponent(id), {
+  const res = await remoteAuthFetch(REMOTE.url + '/rest/v1/matches?id=eq.' + encodeURIComponent(id), () => ({
     method: 'DELETE',
     headers: remoteHeaders(true)
-  });
+  }));
   if(!res.ok){
     let text = '';
     try{ text = await res.text(); }catch(e){}
@@ -178,9 +232,9 @@ function remotePredKey(home, away){
 
 async function remoteLoadMyHistory(){
   if(!remoteSignedIn()) throw new Error('Требуется вход в аккаунт');
-  const res = await fetch(
+  const res = await remoteAuthFetch(
     REMOTE.url + '/rest/v1/user_history?select=id,home,away,gh,ga,round&order=ts.asc,id.asc',
-    { headers: remoteHeaders(true) }
+    () => ({ headers: remoteHeaders(true) })
   );
   if(!res.ok) throw new Error('Не удалось загрузить историю аккаунта: ' + res.status);
   return res.json();
@@ -192,35 +246,36 @@ async function remoteReplaceMyHistory(items){
   const withUser = (Array.isArray(items) ? items : []).map(m => ({
     home: m.home, away: m.away, gh: +m.gh, ga: +m.ga, round: +m.round
   }));
-  // 1) удалить текущие строки пользователя (RLS ограничивает только его строками)
-  //    Supabase требует WHERE-условие для DELETE; id=gte.0 покрывает все строки,
-  //    а RLS (user_id = auth.uid()) оставит видимыми только строки текущего пользователя.
-  const del = await fetch(
+  // 1) удалить текущие строки пользователя (RLS оставляет видимыми только его строки).
+  //    Supabase требует WHERE-условие для DELETE; id=gte.0 покрывает все строки.
+  const del = await remoteAuthFetch(
     REMOTE.url + '/rest/v1/user_history?id=gte.0',
-    { method: 'DELETE', headers: remoteHeaders(true) }
+    () => ({ method: 'DELETE', headers: remoteHeaders(true) })
   );
-  // 2) вставить новые (если есть)
+  if(!del.ok && del.status !== 204){
+    const data = await del.json().catch(() => ({}));
+    throw new Error((data.message || data.hint || 'Не удалось очистить историю') + ' (' + del.status + ')');
+  }
+  // 2) вставить новые (если есть) — только после успешной очистки, чтобы не плодить дубли
   if(withUser.length){
-    const ins = await fetch(REMOTE.url + '/rest/v1/user_history', {
+    const ins = await remoteAuthFetch(REMOTE.url + '/rest/v1/user_history', () => ({
       method: 'POST',
       headers: Object.assign(remoteHeaders(true), { 'Prefer': 'return=minimal' }),
       body: JSON.stringify(withUser)
-    });
+    }));
     if(!ins.ok){
       const data = await ins.json().catch(() => ({}));
       throw new Error((data.message || data.hint || 'Не удалось сохранить историю') + ' (' + ins.status + ')');
     }
   }
-  if(del.ok || del.status === 204) return true;
-  const data = await del.json().catch(() => ({}));
-  throw new Error((data.message || data.hint || 'Не удалось очистить историю') + ' (' + del.status + ')');
+  return true;
 }
 
 async function remoteLoadMyPredictions(){
   if(!remoteSignedIn()) throw new Error('Требуется вход в аккаунт');
-  const res = await fetch(
+  const res = await remoteAuthFetch(
     REMOTE.url + '/rest/v1/user_predictions?select=id,home,away,probs,lh,la&order=ts.asc,id.asc',
-    { headers: remoteHeaders(true) }
+    () => ({ headers: remoteHeaders(true) })
   );
   if(!res.ok) throw new Error('Не удалось загрузить прогнозы аккаунта: ' + res.status);
   return res.json();
@@ -235,37 +290,26 @@ async function remoteReplaceMyPredictions(items){
     lh: Number.isFinite(+p.lh) ? +p.lh : null,
     la: Number.isFinite(+p.la) ? +p.la : null
   }));
-  const del = await fetch(
+  const del = await remoteAuthFetch(
     REMOTE.url + '/rest/v1/user_predictions?id=gte.0',
-    { method: 'DELETE', headers: remoteHeaders(true) }
+    () => ({ method: 'DELETE', headers: remoteHeaders(true) })
   );
+  if(!del.ok && del.status !== 204){
+    const data = await del.json().catch(() => ({}));
+    throw new Error((data.message || data.hint || 'Не удалось очистить прогнозы') + ' (' + del.status + ')');
+  }
   if(withUser.length){
-    const ins = await fetch(REMOTE.url + '/rest/v1/user_predictions', {
+    const ins = await remoteAuthFetch(REMOTE.url + '/rest/v1/user_predictions', () => ({
       method: 'POST',
       headers: Object.assign(remoteHeaders(true), { 'Prefer': 'return=minimal' }),
       body: JSON.stringify(withUser)
-    });
+    }));
     if(!ins.ok){
       const data = await ins.json().catch(() => ({}));
       throw new Error((data.message || data.hint || 'Не удалось сохранить прогнозы') + ' (' + ins.status + ')');
     }
   }
-  if(del.ok || del.status === 204) return true;
-  const data = await del.json().catch(() => ({}));
-  throw new Error((data.message || data.hint || 'Не удалось очистить прогнозы') + ' (' + del.status + ')');
-}
-
-// Проверить, настроены ли личные таблицы (запрос к user_history вернёт пустой массив,
-// а не ошибку, если таблица есть и RLS даёт право читать свои строки).
-async function remoteCanUseProfile(){
-  if(!remoteSignedIn()) return false;
-  try{
-    await remoteLoadMyHistory();
-    return true;
-  }catch(e){
-    console.warn('Supabase: личные таблицы недоступны.', e);
-    return false;
-  }
+  return true;
 }
 
 remoteRestoreSession();

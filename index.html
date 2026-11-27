@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Аналитика футбола России </title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%230e7a37'/%3E%3Ccircle cx='16' cy='16' r='7' fill='%23ffffff'/%3E%3C/svg%3E">
 <style>
 :root{--navy:#0b1f3a;--navy2:#122c52;--red:#d7141a;--red2:#b50f15;
   --green:#16a34a;--green2:#0e7a37;--amber:#e8a400;--blue:#2a7de0;
@@ -806,6 +807,7 @@ function renderAccount(){
         AUTH_IS_ADMIN = false;
         renderAccount();
         if(typeof renderAdmin === 'function') renderAdmin();
+        renderMetrics(); renderHistory(); renderPredictions();
       };
     } else {
       box.innerHTML = `<div class="acc-guest">Гостевой режим</div>` +
@@ -1818,7 +1820,7 @@ async function renderAdmin(){
   if(addCard) addCard.style.display = (configured && isAdmin) ? '' : 'none';
   if(bulkCard) bulkCard.style.display = (configured && isAdmin) ? '' : 'none';
   if(!configured){
-    adminStatus('Бэкенд не настроен: заполните SUPABASE_URL и SUPABASE_ANON_KEY в config.js. Пока работает локальный режим (matches.js + localStorage).');
+    adminStatus('Бэкенд не настроен: заполните SUPABASE_URL и SUPABASE_ANON_KEY в config.js. Пока работает локальный режим (localStorage).');
   } else if(!email){
     adminStatus('Бэкенд подключён. Войдите через меню аккаунта, чтобы управлять общей базой.');
   } else if(!isAdmin){
@@ -1955,9 +1957,13 @@ function bindValidation(){
     csv.focus();
   };
   if($('#vCsv')) $('#vCsv').onchange = () => {
-    const n = importHistoryCSV($('#vCsv').value);
-    saveHistory(); $('#vCsv').value=''; $('#vCsv').style.display='none';
-    alert('Импортировано матчей: '+n); renderMetrics(); renderHistory();
+    const res = importHistoryCSV($('#vCsv').value);
+    $('#vCsv').value=''; $('#vCsv').style.display='none';
+    const parts = ['добавлено: ' + res.added];
+    if(res.dupSkipped) parts.push('дублей пропущено: ' + res.dupSkipped);
+    if(res.bad) parts.push('строк с ошибкой: ' + res.bad);
+    alert('Импорт CSV — ' + parts.join(', ') + '. Всего матчей: ' + res.total + '.');
+    renderMetrics(); renderHistory();
   };
   if($('#vClear')) $('#vClear').onclick = () => {
     if(confirm('Очистить всю историю матчей?')){ clearHistory(); saveHistory(); renderMetrics(); renderHistory(); }
@@ -2043,7 +2049,6 @@ function refreshAll(){
   computeProbs(); saveDB(); renderProbs();
 fillVSel(); toggleView(); renderMetrics(); renderHistory(); renderCalibNow(); renderPredictions(); fillAdminSelects();
 }
-mergeSharedMatches();
 refreshAll();
 showDbResetNotice();
 remoteMergeMatches().then(r => {
