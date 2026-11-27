@@ -333,6 +333,20 @@ td,th{font-variant-numeric:tabular-nums}
 .auth-msg.ok{color:var(--green)}
 .auth-msg.err{color:#ff6b70}
 
+/* ---------- сворачивание карточек ---------- */
+.tabs-tools{display:flex;justify-content:flex-end;margin:0 0 10px}
+.tabs-tools .btn{margin:0}
+.card{position:relative}
+.card-toggle{position:absolute;top:14px;right:14px;z-index:2;width:30px;height:30px;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  border:1px solid var(--line);border-radius:8px;background:var(--surface2);color:var(--text);
+  font-size:13px;line-height:1;transition:background .15s}
+.card-toggle:hover{background:var(--hover)}
+.card.has-toggle > h2,.card.has-toggle > h3{padding-right:46px}
+.card.collapsed > *{display:none !important}
+.card.collapsed > h2,.card.collapsed > h3{display:block !important}
+.card.collapsed > .card-toggle{display:flex !important}
+
 @media(max-width:700px){
   .card{padding:14px}
   .card table{display:block;overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch}
@@ -365,6 +379,8 @@ td,th{font-variant-numeric:tabular-nums}
   #baseTable th:nth-child(8),#baseTable td:nth-child(8){display:none}
   #vMetrics table th{font-size:9px;padding:5px 3px;line-height:1.15}
   #vMetrics table td{font-size:10px;padding:5px 3px}
+  .card-toggle{top:10px;right:10px;width:28px;height:28px;font-size:12px}
+  .card.has-toggle > h2,.card.has-toggle > h3{padding-right:40px}
 }
 @media(max-width:480px){
   .top{padding:10px 10px}
@@ -439,6 +455,8 @@ td,th{font-variant-numeric:tabular-nums}
 
 
 <main>
+
+<div class="tabs-tools"><button class="btn alt" id="collapseAllBtn" type="button">Свернуть всё</button></div>
 
 <datalist id="forms"></datalist>
 
@@ -568,8 +586,6 @@ td,th{font-variant-numeric:tabular-nums}
       <button class="btn" id="vAdd">➕ Добавить матч</button>
       <button class="btn alt" id="vImport">📥 Импорт CSV</button>
       <button class="btn alt" id="vClear">🗑 Очистить историю</button>
-      <button class="btn alt" id="vExportShared">⬇ Скачать общую базу</button>
-      <button class="btn alt" id="vBuildShared">Собрать matches.js из CSV</button>
     </div>
     <textarea id="vCsv" style="min-height:120px;display:none" placeholder="КомандаА,КомандаБ,голыА,голыБ,Тур"></textarea>
   </div>
@@ -732,15 +748,6 @@ function showDbResetNotice(){
   document.body.appendChild(d);
   setTimeout(()=>d.remove(), 8000);
 }
-function downloadText(filename, text){
-  const blob = new Blob([text], {type:'text/javascript;charset=utf-8'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
-}
-
 /* ================== ВЫДВИЖНОЕ МЕНЮ ================== */
 const drawerEl = document.getElementById('drawer');
 const drawerBackdrop = document.getElementById('drawerBackdrop');
@@ -1950,38 +1957,8 @@ function bindValidation(){
   if($('#vClear')) $('#vClear').onclick = () => {
     if(confirm('Очистить всю историю матчей?')){ clearHistory(); saveHistory(); renderMetrics(); renderHistory(); }
   };
-  if($('#vExportShared')) $('#vExportShared').onclick = () => {
-    const arr = HISTORY.map(m => ({home:m.home, away:m.away, gh:m.gh, ga:m.ga, round:(m.round ?? 1)}));
-    const text = '/* Общая база реальных матчей. Публикуется вместе с сайтом: эти матчи видят все посетители.\n' +
-                 '   Формат: home, away, gh (голы хозяев), ga (голы гостей), round (тур). */\n' +
-                 'const SHARED_MATCHES = ' + JSON.stringify(arr, null, 2) + ';\n';
-    const blob = new Blob([text], {type:'text/javascript;charset=utf-8'});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'matches.js';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
-  };
   if($('#vPredsClear')) $('#vPredsClear').onclick = () => {
     if(confirm('Очистить сохранённые прогнозы?')){ clearPredictions(); renderPredictions(); }
-  };
-  if($('#vBuildShared')) $('#vBuildShared').onclick = () => {
-    const csvEl = $('#vCsv');
-    const csv = ((csvEl && csvEl.value) || '').trim();
-    if(!csv){
-      if(csvEl){ csvEl.style.display = 'block'; csvEl.focus(); }
-      alert('Вставьте CSV в поле ниже и нажмите кнопку ещё раз.');
-      return;
-    }
-    const res = buildMatchesFromCSV(csv);
-    if(!res.items.length){
-      alert('Не найдено корректных матчей.' + (res.unknown.length ? ' Неизвестные команды: ' + res.unknown.join(', ') : ''));
-      return;
-    }
-    const header = '/* Общая база реальных матчей. Публикуется вместе с сайтом: эти матчи видят все посетители.\n' +
-                   '   Формат: home, away, gh (голы хозяев), ga (голы гостей), round (тур). */\n';
-    downloadText('matches.js', header + 'const SHARED_MATCHES = ' + JSON.stringify(res.items, null, 2) + ';\n');
-    alert(`Готово: ${res.items.length} матчей. Пропущено строк: ${res.bad}. Дубликатов: ${res.dup}. Неизвестные команды: ${res.unknown.length ? res.unknown.join(', ') : 'нет'}`);
   };
   if($('#vCalibrate')) $('#vCalibrate').onclick = () => {
     const out = $('#vCalibOut');
@@ -1999,6 +1976,55 @@ function bindValidation(){
 }
 bindValidation(); fillVSel(); toggleView(); renderMetrics(); renderHistory(); bindAdmin(); fillAdminSelects();
 renderAccount(); refreshAdminRole();
+
+/* ================== СВОРАЧИВАНИЕ КАРТОЧЕК ================== */
+const collapseAllBtn = document.getElementById('collapseAllBtn');
+function allToggleCards(){
+  return Array.from(document.querySelectorAll('.tab .card.has-toggle'));
+}
+function setCardCollapsed(card, collapsed){
+  card.classList.toggle('collapsed', !!collapsed);
+  const btn = card.querySelector(':scope > .card-toggle');
+  if(btn){
+    btn.textContent = collapsed ? '▸' : '▾';
+    btn.setAttribute('aria-expanded', String(!collapsed));
+  }
+}
+function updateCollapseAllLabel(){
+  if(!collapseAllBtn) return;
+  const cards = allToggleCards();
+  const all = cards.length > 0 && cards.every(c => c.classList.contains('collapsed'));
+  collapseAllBtn.textContent = all ? 'Развернуть всё' : 'Свернуть всё';
+}
+function initCollapsibles(){
+  document.querySelectorAll('.tab .card').forEach(card => {
+    if(card.classList.contains('has-toggle')) return;
+    const head = card.querySelector(':scope > h2, :scope > h3');
+    if(!head) return;
+    card.classList.add('has-toggle');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'card-toggle';
+    btn.textContent = '▾';
+    btn.setAttribute('aria-expanded', 'true');
+    btn.setAttribute('aria-label', 'Свернуть или развернуть блок');
+    btn.onclick = e => {
+      e.stopPropagation();
+      const next = !card.classList.contains('collapsed');
+      setCardCollapsed(card, next);
+      updateCollapseAllLabel();
+    };
+    card.appendChild(btn);
+  });
+  updateCollapseAllLabel();
+}
+if(collapseAllBtn) collapseAllBtn.onclick = () => {
+  const cards = allToggleCards();
+  const all = cards.length > 0 && cards.every(c => c.classList.contains('collapsed'));
+  cards.forEach(c => setCardCollapsed(c, !all));
+  updateCollapseAllLabel();
+};
+initCollapsibles();
 
 /* ================== ОБНОВЛЕНИЕ ВСЕГО ================== */
 function refreshAll(){
