@@ -37,7 +37,8 @@ const projectGlobals = [
   'remoteLoadMatches', 'remoteAddMatch', 'remoteAddMatches', 'remoteDeleteMatch',
   'remoteMergeMatches', 'remoteSignedIn', 'remotePredKey', 'remoteLoadMyHistory',
   'remoteReplaceMyHistory', 'remoteLoadMyPredictions', 'remoteReplaceMyPredictions',
-  'remoteAuthFetch', 'remoteRefreshSession', 'refreshAdminRole', 'renderAccount'
+  'remoteAuthFetch', 'remoteRefreshSession', 'refreshAdminRole', 'renderAccount',
+  'remoteLoadFixtures'
 ];
 
 // Объявления проекта становятся глобалами, поэтому no-redeclare по ним отключён:
@@ -70,7 +71,14 @@ export default [
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
-      globals: { process: 'readonly', console: 'readonly' }
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        fetch: 'readonly',
+        URL: 'readonly',
+        setTimeout: 'readonly',
+        TextDecoder: 'readonly'
+      }
     },
     rules: { 'no-undef': 'error' }
   },
