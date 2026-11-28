@@ -533,6 +533,61 @@ const FORMATIONS = {
     {tag:'НАП', x:76, ys:[50]}]
 };
 
+function lineOfPlayer(label){
+  const L = (label || '').toUpperCase();
+  if(/ЗАЩ|ЦЗ/.test(L)) return 'def';
+  if(/НАП|ФОРВ/.test(L)) return 'fwd';
+  if(/АТАК/.test(L)) return 'att';
+  return 'mid';
+}
+
+/* В заявке иногда оказывается лишний игрок (12 вместо 11). Оставляем ровно
+   10 полевых: лишних убираем из переполненной линии, ориентируясь на схему. */
+function trimOutfield(rows, formation){
+  const total = rows.reduce((s,r)=>s+r.names.length,0);
+  if(total <= 10) return rows;
+  const nums = String(formation||'').split('-').map(Number).filter(n => Number.isFinite(n) && n > 0);
+  let defE = 0, midE = 0, attE = 0;
+  if(nums.length >= 2){
+    defE = nums[0];
+    attE = nums[nums.length-1];
+    midE = Math.max(0, 10 - defE - attE);
+  }
+  const items = [];
+  rows.forEach((r, ri) => r.names.forEach((nm, ni) => items.push({ ri, ni, line: lineOfPlayer(r.label) })));
+  const count = pred => items.filter(pred).length;
+  const sumA = { def: count(x=>x.line==='def'), mid: count(x=>x.line==='mid'), att: count(x=>x.line==='fwd'||x.line==='att') };
+  const sumB = { def: count(x=>x.line==='def'), mid: count(x=>x.line==='mid'||x.line==='att'), att: count(x=>x.line==='fwd') };
+  const over = s => Math.max(0, s.def-defE) + Math.max(0, s.mid-midE) + Math.max(0, s.att-attE);
+  const useA = over(sumA) <= over(sumB);
+  const lineOf = x => useA ? (x.line==='fwd'||x.line==='att' ? 'att' : x.line) : (x.line==='att' ? 'mid' : x.line);
+  const expected = { def:defE, mid:midE, att:attE };
+  const seen = { def:0, mid:0, att:0 };
+  const drop = new Set();
+  items.forEach(x => {
+    const g = lineOf(x);
+    seen[g]++;
+    if(nums.length >= 2 && seen[g] > expected[g]) drop.add(x.ri + ':' + x.ni);
+  });
+  let kept = 0;
+  const out = rows.map((r, ri) => {
+    const names = r.names.filter((_, ni) => !drop.has(ri + ':' + ni));
+    kept += names.length;
+    return { label: r.label, names };
+  }).filter(r => r.names.length);
+  // страховка, если схема не распознана: жёстко ограничиваем 10 полевыми
+  if(kept > 10){
+    let excess = kept - 10;
+    for(let i = out.length - 1; i >= 0 && excess > 0; i--){
+      const cut = Math.min(excess, out[i].names.length);
+      out[i].names = out[i].names.slice(0, out[i].names.length - cut);
+      excess -= cut;
+    }
+    return out.filter(r => r.names.length);
+  }
+  return out;
+}
+
 function pitchPlayers(t, side){
   const rows = parseLineup(t.lineup);
   if(!rows.length) return '';
@@ -540,6 +595,7 @@ function pitchPlayers(t, side){
   if((rows[0].label||'').toUpperCase().startsWith('ВР') || rows[0].names.length===1){
     gk = rows[0].names[0]; outRows = rows.slice(1);
   }
+  outRows = trimOutfield(outRows, t.formation);
   const F = FORMATIONS[(t.formation||'').trim()];
   const total = outRows.reduce((s,r)=>s+r.names.length,0);
   const flat = outRows.flatMap(r=>r.names);
@@ -1079,6 +1135,81 @@ function renderMetrics(){
     }
   }
   el.innerHTML = html;
+  renderModelCompare();
+}
+
+/* ---------- СРАВНЕНИЕ МОДЕЛЕЙ И ГРАФИКИ ---------- */
+// метрики с временно включёнными функциями модели (флаги восстанавливаются)
+function metricsWith(dyn, squad){
+  const d = USE_DYNAMIC, s = USE_SQUAD;
+  USE_DYNAMIC = !!dyn; USE_SQUAD = !!squad;
+  const m = validationMetrics();
+  USE_DYNAMIC = d; USE_SQUAD = s;
+  return m;
+}
+
+function svgRoundAccuracy(rounds){
+  if(!rounds || rounds.length < 2) return '<p class="note">Нужно минимум два тура с результатами.</p>';
+  const W=560, H=200, L=38, R=12, T=14, B=26;
+  const X = i => L + i*(W-L-R)/(rounds.length-1);
+  const Y = v => T + (1-v)*(H-T-B);
+  const avg = rounds.reduce((s,r)=>s+r.acc,0)/rounds.length;
+  const grid = [0,0.25,0.5,0.75,1].map(v =>
+    `<line x1="${L}" y1="${Y(v).toFixed(1)}" x2="${W-R}" y2="${Y(v).toFixed(1)}" stroke="currentColor" stroke-opacity=".12"/>` +
+    `<text x="${L-6}" y="${(Y(v)+4).toFixed(1)}" text-anchor="end" font-size="10" fill="currentColor" fill-opacity=".6">${Math.round(v*100)}%</text>`).join('');
+  const pts = rounds.map((r,i)=>`${X(i).toFixed(1)},${Y(r.acc).toFixed(1)}`).join(' ');
+  const dots = rounds.map((r,i)=>`<circle cx="${X(i).toFixed(1)}" cy="${Y(r.acc).toFixed(1)}" r="3" fill="#2a7de0"><title>Тур ${r.round}: ${(r.acc*100).toFixed(0)}%, матчей ${r.n}</title></circle>`).join('');
+  const step = Math.max(1, Math.ceil(rounds.length/6));
+  const labels = rounds.map((r,i)=> (i===0 || i===rounds.length-1 || i%step===0)
+    ? `<text x="${X(i).toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="10" fill="currentColor" fill-opacity=".6">${r.round}</text>` : '').join('');
+  return `<svg viewBox="0 0 ${W} ${H}" class="chart" role="img" aria-label="Точность по турам">${grid}` +
+    `<line x1="${L}" y1="${Y(avg).toFixed(1)}" x2="${W-R}" y2="${Y(avg).toFixed(1)}" stroke="#18a85e" stroke-width="1.5" stroke-dasharray="5 4"/>` +
+    `<polyline points="${pts}" fill="none" stroke="#2a7de0" stroke-width="2"/>${dots}${labels}</svg>` +
+    `<p class="note">Средняя точность ${(avg*100).toFixed(1)}%, туры ${rounds[0].round}–${rounds[rounds.length-1].round}. Пунктир — среднее по всем турам.</p>`;
+}
+
+function svgReliability(rel){
+  if(!rel || rel.length < 2) return '<p class="note">Мало данных для графика калибровки.</p>';
+  const W=560, H=220, L=40, R=14, T=14, B=30;
+  const X = v => L + v*(W-L-R);
+  const Y = v => T + (1-v)*(H-T-B);
+  const grid = [0,0.25,0.5,0.75,1].map(v =>
+    `<line x1="${X(v).toFixed(1)}" y1="${T}" x2="${X(v).toFixed(1)}" y2="${H-B}" stroke="currentColor" stroke-opacity=".08"/>` +
+    `<line x1="${L}" y1="${Y(v).toFixed(1)}" x2="${W-R}" y2="${Y(v).toFixed(1)}" stroke="currentColor" stroke-opacity=".08"/>` +
+    `<text x="${L-6}" y="${(Y(v)+4).toFixed(1)}" text-anchor="end" font-size="10" fill="currentColor" fill-opacity=".6">${Math.round(v*100)}%</text>` +
+    `<text x="${X(v).toFixed(1)}" y="${H-10}" text-anchor="middle" font-size="10" fill="currentColor" fill-opacity=".6">${Math.round(v*100)}%</text>`).join('');
+  const dots = rel.map(b => `<circle cx="${X(b.pred).toFixed(1)}" cy="${Y(b.fact).toFixed(1)}" r="${Math.max(3, Math.min(8, Math.sqrt(b.n))).toFixed(1)}" fill="#e8a400" fill-opacity=".9"><title>Прогноз ${(b.pred*100).toFixed(0)}%, факт ${(b.fact*100).toFixed(0)}%, матчей ${b.n}</title></circle>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" class="chart" role="img" aria-label="Калибровка вероятностей">${grid}` +
+    `<line x1="${X(0)}" y1="${Y(0)}" x2="${X(1)}" y2="${Y(1)}" stroke="currentColor" stroke-opacity=".4" stroke-dasharray="4 4"/>` +
+    `${dots}</svg><p class="note">По горизонтали — прогнозная вероятность, по вертикали — фактическая частота. Точки на пунктире — идеальная калибровка; размер точки — число матчей.</p>`;
+}
+
+function renderCharts(m){
+  const el = $('#charts'); if(!el) return;
+  if(!m || !m.n){ el.innerHTML = '<p class="note">Добавьте матчи в историю — графики появятся.</p>'; return; }
+  el.innerHTML = '<h3>Точность исхода по турам</h3>' + svgRoundAccuracy(m.rounds) +
+    '<h3 style="margin-top:20px">Калибровка вероятностей</h3>' + svgReliability(m.reliability);
+}
+
+function renderModelCompare(){
+  const el = $('#modelCompare');
+  if(!el || typeof validationMetrics !== 'function') return;
+  const variants = [
+    ['Базовая', metricsWith(false,false)],
+    ['+ динамический xG', metricsWith(true,false)],
+    ['+ сила состава', metricsWith(false,true)],
+    ['+ динамика и состав', metricsWith(true,true)]
+  ];
+  const base = variants[0][1];
+  if(!base || !base.n){ el.innerHTML = '<p class="note">Нужны матчи с известными результатами.</p>'; renderCharts(base); return; }
+  let best = variants[0];
+  variants.forEach(v => { if(v[1].n && v[1].logLoss < best[1].logLoss) best = v; });
+  el.innerHTML = '<table>' +
+    '<tr><th class="l">Модель</th><th>Матчей</th><th>Точность</th><th>Log-loss</th><th>Brier</th></tr>' +
+    variants.map(([name,m]) => `<tr><td class="l">${name}${m === best[1] ? ' ★' : ''}</td><td>${m.n || 0}</td>` +
+      `<td>${m.n ? (m.acc*100).toFixed(1)+'%' : '—'}</td><td>${m.n ? m.logLoss.toFixed(3) : '—'}</td><td>${m.n ? m.brier.toFixed(3) : '—'}</td></tr>`).join('') +
+    '</table><p class="note">★ — лучший log-loss на вашей истории матчей. Все варианты считаются по одной и той же базе.</p>';
+  renderCharts(base);
 }
 function renderCalibNow(){
   const el = $('#vCalibNow'); if(!el) return;

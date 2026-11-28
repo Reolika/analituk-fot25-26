@@ -267,6 +267,8 @@ td,th{font-variant-numeric:tabular-nums}
 .rel-pred{position:absolute;left:0;right:0;height:2px;background:var(--amber);box-shadow:0 0 0 1px rgba(0,0,0,.3)}
 .rel-x{font-size:10px;color:var(--muted)}
 .rel-n{font-size:10px;color:var(--muted)}
+.chart{width:100%;height:auto;display:block;color:var(--text)}
+.chart text{font-family:inherit}
 
 /* ---------- аккаунт и выдвижное меню ---------- */
 [hidden]{display:none !important}
