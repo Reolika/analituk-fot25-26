@@ -104,7 +104,18 @@ function renderAccount(){
   const btn = document.getElementById('accountBtn');
   const box = document.getElementById('drawerAccount');
   const adminItem = document.getElementById('drawerAdmin');
-  if(btn) btn.textContent = email ? email.split('@')[0] : 'Войти';
+  if(btn){
+    if(email){
+      const local = email.split('@')[0];
+      const parts = local.split(/[._-]+/).filter(Boolean);
+      const ini = (parts.length > 1 ? parts[0][0] + parts[1][0] : local.slice(0, 2)).toUpperCase();
+      btn.innerHTML = `<span class="acc-avatar">${esc(ini)}</span><span class="acc-name">${esc(local)}</span>`;
+      btn.title = email;
+    } else {
+      btn.innerHTML = '<span class="acc-name">Войти</span>';
+      btn.title = 'Войти';
+    }
+  }
   if(box){
     if(email){
       box.innerHTML = `<div class="acc-email">${esc(email)}</div>` +
@@ -719,6 +730,16 @@ let relegPrevReady = false;   // флаг для relegRefresh — объявле
 
 const SIMS = {rpl: simNewState(), fnl: simNewState()};
 let simDiv = 'rpl', S = SIMS.rpl;
+
+/* иконки кнопок симуляции */
+const SIM_ICON = {
+  play: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.6 3.2v9.6L12.8 8z" fill="currentColor"/></svg>',
+  pause: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="3" width="2.7" height="10" rx="1" fill="currentColor"/><rect x="9.3" y="3" width="2.7" height="10" rx="1" fill="currentColor"/></svg>',
+  skip: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5v9L10.2 8z" fill="currentColor"/><rect x="11" y="3.5" width="1.8" height="9" rx=".9" fill="currentColor"/></svg>',
+  ff: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.6 3.5v9L8.2 8zM8.2 3.5v9L13.8 8z" fill="currentColor"/></svg>',
+  next: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5v9L10.2 8z" fill="currentColor"/><path d="M11.6 3.5L14 8l-2.4 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  refresh: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.8v3.4h-3.4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+};
 const simRounds = () => idxOf(simDiv).length - 1 ? (idxOf(simDiv).length - 1) * 2 : 30;
 
 function simNewRound() {
@@ -739,7 +760,7 @@ function simNewRound() {
     if (S.finRound !== S.round) { simFinalizeRound(S); S.finRound = S.round; }
     clearInterval(S.timer); S.timer = null;
     const play = document.getElementById('simPlay');
-    play.textContent = '▶ Пуск'; play.disabled = false;
+    play.innerHTML = SIM_ICON.play + 'Пуск'; play.disabled = false;
     document.getElementById('simSkip').disabled = true;
     document.getElementById('simNext').disabled = false;
     const st = document.getElementById('simStatus');
@@ -767,7 +788,7 @@ function simNewRound() {
     st.classList.add('active');
     const nxt = document.getElementById('simNext');
     nxt.disabled = false;
-    nxt.textContent = '🔄 Новый сезон';
+    nxt.innerHTML = SIM_ICON.refresh + 'Новый сезон';
     simRender();
     return;
   }
@@ -793,10 +814,10 @@ function simNewRound() {
 
   simStopTimer();
   const nxt = document.getElementById('simNext');
-  nxt.textContent = 'Следующий тур';
+  nxt.innerHTML = SIM_ICON.next + 'Следующий тур';
   nxt.disabled = true;
   document.getElementById('simPlay').disabled = false;
-  document.getElementById('simPlay').textContent = '▶ Пуск';
+  document.getElementById('simPlay').innerHTML = SIM_ICON.play + 'Пуск';
   document.getElementById('simSkip').disabled = true;
   const st = document.getElementById('simStatus');
   st.textContent = `Тур ${S.round} из ${ROUNDS}: нажмите «Пуск».`;
@@ -831,7 +852,7 @@ function simStopTimer(finished) {
   clearInterval(S.timer);
   S.timer = null;
   const play = document.getElementById('simPlay');
-  play.textContent = '▶ Пуск';
+  play.innerHTML = SIM_ICON.play + 'Пуск';
   play.disabled = false;
   document.getElementById('simSkip').disabled = true;
   document.getElementById('simNext').disabled = true;   // тур не завершён — переход запрещён
@@ -859,7 +880,7 @@ function simToggle() {
   } else {
     if (!S.matches.length || S.matches.every(m => m.done)) return;
     S.timer = setInterval(simTick, SIM_TICK_MS);
-    play.textContent = '⏸ Пауза';
+    play.innerHTML = SIM_ICON.pause + 'Пауза';
     document.getElementById('simSkip').disabled = false;
     st.textContent = `Тур ${S.round} из ${ROUNDS} идёт...`;
     st.classList.add('active');
@@ -924,15 +945,23 @@ $('#simFF').onclick = simFastForward;
 function simRender() {
   relegRefresh();
   document.getElementById('simFF').disabled = S.over || !S.matches.length;
-  document.getElementById('simGrid').innerHTML = S.matches.map(m => `
+  document.getElementById('simGrid').innerHTML = S.matches.map(m => {
+    const pct = Math.max(0, Math.min(100, (m.min / 90) * 100));
+    const lead = m.gh > m.ga ? 'h' : (m.ga > m.gh ? 'a' : '');
+    return `
     <div class="sim-match${m.done ? ' done' : ''}">
-      <div class="sm-head">
-        <span>${crestImg(DB.teams[m.hi], 20)}${esc(m.home)} — ${esc(m.away)}${crestImg(DB.teams[m.ai], 20)}</span>
-        <span>${m.done ? 'Завершён' : m.min + "'"}</span>
+      <div class="sm-top">
+        <span class="sm-min">${m.done ? 'Завершён' : m.min + "'"}</span>
+        <span class="sm-progress" aria-hidden="true"><i style="width:${pct.toFixed(1)}%"></i></span>
       </div>
-      <div class="sm-score${m.flash ? ' flash' : ''}">${m.gh}:${m.ga}</div>
+      <div class="sm-row">
+        <span class="sm-team${lead === 'h' ? ' lead' : ''}">${crestImg(DB.teams[m.hi], 20)}<span class="sm-name">${esc(m.home)}</span></span>
+        <span class="sm-score${m.flash ? ' flash' : ''}">${m.gh}:${m.ga}</span>
+        <span class="sm-team away${lead === 'a' ? ' lead' : ''}"><span class="sm-name">${esc(m.away)}</span>${crestImg(DB.teams[m.ai], 20)}</span>
+      </div>
       <div class="sm-log">${m.log.map(esc).join('<br>') || '&nbsp;'}</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   S.matches.forEach(m => m.flash = false);
   simRenderTable();
   simRenderScorers();
@@ -986,7 +1015,7 @@ $('#simNext').onclick = () => {
   if (S.matches.length && !S.matches.every(m => m.done)) return; // тур не завершён — переход запрещён
   if (S.over) {
     S.round = 1; S.standings = {}; S.scorers = {}; S.over = false; S.schedule = null; S.finRound = 0;
-    document.getElementById('simNext').textContent = 'Следующий тур';
+    document.getElementById('simNext').innerHTML = SIM_ICON.next + 'Следующий тур';
     decayAdapt();
     simNewRound();
     return;
@@ -999,16 +1028,61 @@ $('#simNext').onclick = () => {
 };
 
 
-// переключение дивизиона: у каждого своя независимая история сезона
-$('#simDivSel').onchange = e => {
-  simDiv = e.target.value;
-  S = SIMS[simDiv];
-  simNewRound();
+/* ---------- ПЕРЕКЛЮЧЕНИЕ ЛИГИ В СИМУЛЯЦИИ ---------- */
+const SIM_LEAGUES = {
+  rpl:{ name:'РПЛ', sub:'Высший дивизион', logo:'assets/league-rpl.png' },
+  fnl:{ name:'ФНЛ', sub:'Первая лига', logo:'assets/league-fnl.png' }
 };
+
+function syncSimLeague(){
+  const panel = $('#leaguePanel'); if(!panel) return;
+  const L = SIM_LEAGUES[simDiv] || SIM_LEAGUES.rpl;
+  panel.dataset.league = simDiv;
+  const img = $('#leagueBadgeImg');
+  if(img){ img.src = L.logo; img.alt = L.name; }
+  if($('#leagueBadgeName')) $('#leagueBadgeName').textContent = L.name;
+  if($('#leagueBadgeSub')) $('#leagueBadgeSub').textContent = L.sub;
+  document.querySelectorAll('#leagueMenu [data-league]').forEach(b => {
+    b.setAttribute('aria-selected', b.dataset.league === simDiv ? 'true' : 'false');
+  });
+}
+
+function setSimLeague(div){
+  if(!SIM_LEAGUES[div] || div === simDiv) return;
+  simDiv = div;
+  S = SIMS[div];
+  simNewRound();
+  syncSimLeague();
+}
+
+const leagueBadge = $('#leagueBadge'), leagueMenu = $('#leagueMenu');
+function closeLeagueMenu(){
+  if(!leagueMenu) return;
+  leagueMenu.hidden = true;
+  if(leagueBadge) leagueBadge.setAttribute('aria-expanded', 'false');
+}
+if(leagueBadge && leagueMenu){
+  leagueBadge.addEventListener('click', e => {
+    e.stopPropagation();
+    const open = leagueMenu.hidden;
+    leagueMenu.hidden = !open;
+    leagueBadge.setAttribute('aria-expanded', String(open));
+  });
+  leagueMenu.querySelectorAll('[data-league]').forEach(btn => {
+    btn.addEventListener('click', () => { setSimLeague(btn.dataset.league); closeLeagueMenu(); });
+  });
+  document.addEventListener('click', e => {
+    if(leagueMenu.hidden) return;
+    if(leagueMenu.contains(e.target) || leagueBadge.contains(e.target)) return;
+    closeLeagueMenu();
+  });
+  document.addEventListener('keydown', e => { if(e.key === 'Escape') closeLeagueMenu(); });
+}
 
 // стартовые туры обоих дивизионов
 simDiv = 'rpl'; S = SIMS.rpl;
 simNewRound();
+syncSimLeague();
 
 /* ================== ПЕРЕХОДНЫЕ СТЫКИ ================== */
 function relegReady(){
@@ -1170,18 +1244,33 @@ function svgRoundAccuracy(rounds){
 
 function svgReliability(rel){
   if(!rel || rel.length < 2) return '<p class="note">Мало данных для графика калибровки.</p>';
-  const W=560, H=220, L=40, R=14, T=14, B=30;
-  const X = v => L + v*(W-L-R);
-  const Y = v => T + (1-v)*(H-T-B);
+  const bins = rel.slice().sort((a,b) => a.lo - b.lo);
+  const W = 560, rowH = 26, L = 68, R = 78, T = 42, B = 22;
+  const H = T + bins.length * rowH + B;
+  const X = v => L + v * (W - L - R);
   const grid = [0,0.25,0.5,0.75,1].map(v =>
-    `<line x1="${X(v).toFixed(1)}" y1="${T}" x2="${X(v).toFixed(1)}" y2="${H-B}" stroke="currentColor" stroke-opacity=".08"/>` +
-    `<line x1="${L}" y1="${Y(v).toFixed(1)}" x2="${W-R}" y2="${Y(v).toFixed(1)}" stroke="currentColor" stroke-opacity=".08"/>` +
-    `<text x="${L-6}" y="${(Y(v)+4).toFixed(1)}" text-anchor="end" font-size="10" fill="currentColor" fill-opacity=".6">${Math.round(v*100)}%</text>` +
-    `<text x="${X(v).toFixed(1)}" y="${H-10}" text-anchor="middle" font-size="10" fill="currentColor" fill-opacity=".6">${Math.round(v*100)}%</text>`).join('');
-  const dots = rel.map(b => `<circle cx="${X(b.pred).toFixed(1)}" cy="${Y(b.fact).toFixed(1)}" r="${Math.max(3, Math.min(8, Math.sqrt(b.n))).toFixed(1)}" fill="#e8a400" fill-opacity=".9"><title>Прогноз ${(b.pred*100).toFixed(0)}%, факт ${(b.fact*100).toFixed(0)}%, матчей ${b.n}</title></circle>`).join('');
-  return `<svg viewBox="0 0 ${W} ${H}" class="chart" role="img" aria-label="Калибровка вероятностей">${grid}` +
-    `<line x1="${X(0)}" y1="${Y(0)}" x2="${X(1)}" y2="${Y(1)}" stroke="currentColor" stroke-opacity=".4" stroke-dasharray="4 4"/>` +
-    `${dots}</svg><p class="note">По горизонтали — прогнозная вероятность, по вертикали — фактическая частота. Точки на пунктире — идеальная калибровка; размер точки — число матчей.</p>`;
+    `<line x1="${X(v).toFixed(1)}" y1="${T-6}" x2="${X(v).toFixed(1)}" y2="${H-B+4}" stroke="currentColor" stroke-opacity=".07"/>` +
+    `<text x="${X(v).toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="10" fill="currentColor" fill-opacity=".6">${Math.round(v*100)}%</text>`).join('');
+  const rows = bins.map((b,i) => {
+    const y = T + i * rowH + rowH / 2;
+    const gap = (b.fact - b.pred) * 100;
+    const col = Math.abs(gap) > 10 ? '#d7141a' : '#16a34a';
+    const sign = gap > 0 ? '+' : '';
+    return `<g><title>Прогноз ${Math.round(b.pred*100)}%, факт ${Math.round(b.fact*100)}%, матчей ${b.n}</title>` +
+      `<text x="${L-10}" y="${(y+4).toFixed(1)}" text-anchor="end" font-size="10" fill="currentColor" fill-opacity=".65">${Math.round(b.lo*100)}–${Math.round(b.hi*100)}%</text>` +
+      `<line x1="${L}" y1="${y.toFixed(1)}" x2="${W-R}" y2="${y.toFixed(1)}" stroke="currentColor" stroke-opacity=".1"/>` +
+      `<line x1="${X(b.pred).toFixed(1)}" y1="${y.toFixed(1)}" x2="${X(b.fact).toFixed(1)}" y2="${y.toFixed(1)}" stroke="${col}" stroke-width="2" stroke-opacity=".45"/>` +
+      `<circle cx="${X(b.pred).toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="#e8a400"/>` +
+      `<circle cx="${X(b.fact).toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="#16a34a"/>` +
+      `<text x="${W-R+10}" y="${(y+4).toFixed(1)}" font-size="10" fill="${col}" fill-opacity=".9">${sign}${Math.round(gap)} пп</text>` +
+      `</g>`;
+  }).join('');
+  const legend = `<g font-size="10" fill="currentColor" fill-opacity=".7">` +
+    `<circle cx="${L+4}" cy="14" r="4" fill="#e8a400"/><text x="${L+12}" y="17">прогноз</text>` +
+    `<circle cx="${L+74}" cy="14" r="4" fill="#16a34a"/><text x="${L+82}" y="17">факт</text>` +
+    `<text x="${W-R+10}" y="17">Δ, п.п.</text></g>`;
+  return `<svg viewBox="0 0 ${W} ${H}" class="chart" role="img" aria-label="Калибровка вероятностей">${legend}${grid}${rows}</svg>` +
+    `<p class="note">Каждая строка — интервал прогнозной вероятности: жёлтая точка — средний прогноз, зелёная — фактическая частота. Красная связка — расхождение больше 10 п.п.</p>`;
 }
 
 function renderCharts(m){
@@ -1277,7 +1366,7 @@ async function renderAdmin(){
     const rows = await remoteLoadMatches();
     if(!rows.length){ list.innerHTML = '<p class="note">В облаке пока нет матчей.</p>'; return; }
     list.innerHTML = '<table><tr><th>ID</th><th class="l">Матч</th><th>Счёт</th><th>Тур</th><th></th></tr>' +
-      rows.map(r => `<tr><td>${r.id}</td><td class="l">${esc(r.home)} — ${esc(r.away)}</td><td>${r.gh}:${r.ga}</td><td>${r.round}</td><td>${isAdmin ? `<button class="btn alt" data-del="${r.id}">Удалить</button>` : ''}</td></tr>`).join('') +
+      rows.map(r => `<tr><td>${r.id}</td><td class="l">${esc(r.home)} — ${esc(r.away)}</td><td>${r.gh}:${r.ga}</td><td>${r.round}</td><td>${isAdmin ? `<button class="btn danger" data-del="${r.id}">Удалить</button>` : ''}</td></tr>`).join('') +
       '</table>';
     list.querySelectorAll('[data-del]').forEach(btn => {
       btn.onclick = async () => {
@@ -1515,9 +1604,11 @@ remoteMergeMatches().then(r => {
   const THEME_KEY = 'rpl_theme';
   const root = document.documentElement;
   const btn = document.getElementById('themeToggle');
+  const SUN_ICON = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.2v2M8 12.8v2M1.2 8h2M12.8 8h2M3.2 3.2l1.4 1.4M11.4 11.4l1.4 1.4M12.8 3.2l-1.4 1.4M4.6 11.4l-1.4 1.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>';
+  const MOON_ICON = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 9.6A5.4 5.4 0 1 1 6.4 3a4.6 4.6 0 0 0 6.6 6.6z" fill="currentColor"/></svg>';
   function apply(t){
     root.setAttribute('data-theme', t);
-    if(btn) btn.textContent = t === 'light' ? '☀️' : '🌙';
+    if(btn) btn.innerHTML = t === 'light' ? SUN_ICON : MOON_ICON;
   }
   apply(localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark');
   if(btn) btn.onclick = () => {
