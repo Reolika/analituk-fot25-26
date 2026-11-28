@@ -23,3 +23,7 @@ _orig_style.html
 # зависимости и локальные артефакты
 node_modules/
 .multitool/
+
+# секреты: ключ API-Football и service_role
+supabase/api-key.txt
+supabase/.env

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Аналитика футбола России </title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%230e7a37'/%3E%3Ccircle cx='16' cy='16' r='7' fill='%23ffffff'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="styles.css?v=16">
+  <link rel="stylesheet" href="styles.css?v=27">
 
 </head>
 <body>
@@ -47,6 +47,7 @@
     <button class="active" data-tab="tab-calc" type="button"><span class="ic ic-calc">λ</span>Калькулятор</button>
     <button data-tab="tab-base" type="button"><span class="ic ic-db">▦</span>Данные и вероятности команд</button>
     <button data-tab="tab-sim" type="button"><span class="ic ic-sim">⚡</span>Симуляция</button>
+    <button data-tab="tab-round" type="button"><span class="ic ic-round">▤</span>Туры</button>
     <button data-tab="tab-val" type="button"><span class="ic ic-val">✓</span>Настройки</button>
     <button data-tab="tab-admin" id="drawerAdmin" type="button" hidden><span class="ic ic-admin">🔒</span>Админка</button>
   </div>
@@ -95,8 +96,10 @@
       </div>
       <button class="btn" id="calcBtn">Рассчитать</button>
       <p class="note">λ — ожидаемое число голов. Если поля оставить пустыми, λ рассчитываются из xG команд из базы.</p>
+      <p class="note">Хотите сверить модель с реальностью? <button class="link-btn" id="toRounds" type="button">Открыть туры сезона →</button></p>
     </div>
    
+    <div class="card" id="calcMatch" style="display:none"></div>
     <div class="card" id="calcOut"></div>
     <div class="card">
       <h2>Сравнение команд лицом к лицу</h2>
@@ -208,7 +211,26 @@
 </section>
 <!-- END SIMULATION SECTION -->
 
-<!-- ВКЛАДКА 5: ВАЛИДАЦИЯ -->
+<!-- ВКЛАДКА: ТУРЫ -->
+<section class="tab" id="tab-round">
+  <div class="card">
+    <h2 class="accent">Туры</h2>
+    <div class="round-bar">
+      <div class="round-league" id="roundLeague">
+        <button type="button" data-league="rpl" class="active"><img src="assets/league-rpl.png" alt=""><span>РПЛ</span></button>
+        <button type="button" data-league="fnl"><img src="assets/league-fnl.png" alt=""><span>ФНЛ</span></button>
+      </div>
+      <div class="round-nav">
+        <button type="button" class="round-arrow" id="roundPrev" aria-label="Предыдущий тур">‹</button>
+        <select id="roundSel" aria-label="Тур"></select>
+        <button type="button" class="round-arrow" id="roundNext" aria-label="Следующий тур">›</button>
+      </div>
+    </div>
+    <div class="round-sum" id="roundSummary"></div>
+    <div id="roundList"></div>
+  </div>
+</section>
+
 <section class="tab" id="tab-val">
   <div class="card">
     <h2 class="accent">Валидация модели по истории матчей</h2>
@@ -335,6 +357,6 @@
 <script src="players.js"></script>
 <script src="config.js"></script>
 <script src="db-remote.js"></script>
-<script src="app.js?v=12"></script>
+<script src="app.js?v=23"></script>
 </body>
 </html>

@@ -148,6 +148,20 @@ async function remoteLoadMatches(){
   return res.json();
 }
 
+// Онлайн-матчи (таблица fixtures). Если её ещё нет — тихо возвращаем пусто,
+// чтобы сайт продолжал работать на данных matches.
+async function remoteLoadFixtures(){
+  if(!remoteConfigured()) return [];
+  const res = await fetch(
+    REMOTE.url + '/rest/v1/fixtures?select=external_id,league_code,season,round,kickoff_at,status,minute,home,away,gh,ga,updated_at' +
+      '&order=kickoff_at.asc&limit=500',
+    { headers: remoteHeaders(false) }
+  );
+  if(!res.ok) return null;
+  const rows = await res.json().catch(() => []);
+  return Array.isArray(rows) ? rows : [];
+}
+
 async function remoteAddMatch(m){
   if(!remoteConfigured()) throw new Error('Бэкенд не настроен');
   if(!REMOTE.session) throw new Error('Требуется вход администратора');

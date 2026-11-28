@@ -89,6 +89,8 @@ function activateTab(id){
   if(!id || !document.getElementById(id)) return;
   menuButtons.forEach(x => x.classList.toggle('active', x.dataset.tab === id));
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x.id === id));
+  const mainEl = document.querySelector('main');
+  if(mainEl) mainEl.classList.toggle('wide', id === 'tab-round');
   if(id === 'tab-admin' && typeof renderAdmin === 'function') renderAdmin();
   refreshAll();
 }
@@ -689,10 +691,10 @@ function renderH2H(){
 }
 
 /* ================== ЭКСПОРТ / ИМПОРТ / СБРОС ================== */
-$('#calcBtn').onclick = calcRun;
+$('#calcBtn').onclick = () => { renderMatchInfo(null); calcRun(); };
 $('#ovH').oninput = calcRun; $('#ovA').oninput = calcRun;
-$('#calcHome').onchange = ()=>{ calcRun(); syncH2HFromCalc(); renderH2H(); };
-$('#calcAway').onchange = ()=>{ calcRun(); syncH2HFromCalc(); renderH2H(); };
+$('#calcHome').onchange = ()=>{ renderMatchInfo(null); calcRun(); syncH2HFromCalc(); renderH2H(); };
+$('#calcAway').onchange = ()=>{ renderMatchInfo(null); calcRun(); syncH2HFromCalc(); renderH2H(); };
 $('#sDC').onchange = e => {
   const v = parseFloat(e.target.value);
   if(isFinite(v)) setLeagueParam('dixonColes', v);
@@ -1455,8 +1457,13 @@ function bindAdmin(){
   if(adminNav) adminNav.addEventListener('click', () => { renderAdmin(); });
 }
 function renderHistory(){
-  const el = $('#vList'); if(!el) return;
-  if(typeof HISTORY === 'undefined' || !HISTORY.length){ el.innerHTML = '<p class="note">Пока нет внесённых матчей.</p>'; return; }
+  const el = $('#vList');
+  if(!el){ renderRound(); return; }
+  if(typeof HISTORY === 'undefined' || !HISTORY.length){
+    el.innerHTML = '<p class="note">Пока нет внесённых матчей.</p>';
+    renderRound();
+    return;
+  }
   const shared = HISTORY.filter(m=>m && m.shared).length;
   const local = HISTORY.length - shared;
   const head = '<tr><th>#</th><th class="l">Дома</th><th class="l">Гости</th><th>Счёт</th><th>Тур</th><th>Источник</th></tr>';
@@ -1467,6 +1474,269 @@ function renderHistory(){
     return `<tr><td>${HISTORY.length-i}</td><td class="l">${esc(m.home)}</td><td class="l">${esc(m.away)}</td><td>${m.gh}:${m.ga}</td><td>${m.round ?? '-'}</td><td>${badge}</td></tr>`;
   }).join('');
   el.innerHTML = `<p class="note">Всего матчей: <b>${HISTORY.length}</b> · общих: <b>${shared}</b> · моих: <b>${local}</b></p><table>${head}${rows}</table>`;
+  renderRound();
+}
+
+/* ================== ТУРЫ ================== */
+let roundDiv = 'rpl';
+let roundNum = null;
+let FIXTURES = [];
+let FIXTURES_AT = null;
+let FIXTURES_OFF = false;
+let roundTouched = false;
+
+async function loadFixtures(){
+  if(FIXTURES_OFF) return FIXTURES;
+  if(typeof remoteLoadFixtures !== 'function') return FIXTURES;
+  if(typeof remoteConfigured === 'function' && !remoteConfigured()) return FIXTURES;
+  try{
+    const rows = await remoteLoadFixtures();
+    if(rows === null){
+      FIXTURES_OFF = true;
+      FIXTURES = [];
+      FIXTURES_AT = null;
+      return FIXTURES;
+    }
+    FIXTURES = rows;
+    FIXTURES_AT = rows.length ? new Date() : null;
+  }catch(e){
+    // сеть подвела — оставляем прошлые данные и повторим позже
+  }
+  return FIXTURES;
+}
+
+function roundTeamIdx(name){ return DB.teams.findIndex(t => t.name === name); }
+
+function roundSet(div){
+  const idx = new Set(idxOf(div));
+  const rounds = new Set();
+  HISTORY.forEach(m => {
+    const hi = roundTeamIdx(m.home), ai = roundTeamIdx(m.away);
+    if(hi < 0 || ai < 0 || !idx.has(hi) || !idx.has(ai)) return;
+    if(Number.isFinite(+m.round)) rounds.add(+m.round);
+  });
+  (typeof FIXTURES !== 'undefined' && FIXTURES ? FIXTURES : []).forEach(f => {
+    if(f && f.league_code === div && Number.isFinite(+f.round)) rounds.add(+f.round);
+  });
+  return [...rounds].sort((a,b) => a - b);
+}
+
+function likelyScore(lh, la){
+  const ph = poissonArr(lh), pa = poissonArr(la);
+  let best = {gh:0, ga:0, p:0};
+  for(let h = 0; h < ph.length; h++){
+    for(let a = 0; a < pa.length; a++){
+      const v = ph[h] * pa[a];
+      if(v > best.p) best = {gh:h, ga:a, p:v};
+    }
+  }
+  return best;
+}
+
+function renderRound(){
+  const listEl = $('#roundList'); if(!listEl) return;
+  const rounds = roundSet(roundDiv);
+  const sel = $('#roundSel');
+  if(sel){
+    sel.innerHTML = rounds.length ? rounds.map(r => `<option value="${r}">Тур ${r}</option>`).join('') : '<option>—</option>';
+    sel.disabled = !rounds.length;
+  }
+  if(!rounds.length){
+    roundNum = null;
+    if($('#roundSummary')) $('#roundSummary').innerHTML = '<span>В истории пока нет матчей этой лиги.</span>';
+    listEl.innerHTML = '';
+    if($('#roundPrev')) $('#roundPrev').disabled = true;
+    if($('#roundNext')) $('#roundNext').disabled = true;
+    return;
+  }
+  if(roundNum === null || !rounds.includes(roundNum) ||
+     (!roundTouched && typeof FIXTURES !== 'undefined' && FIXTURES && FIXTURES.length)){
+    const fxRounds = (typeof FIXTURES !== 'undefined' && FIXTURES ? FIXTURES : [])
+      .filter(f => f && f.league_code === roundDiv && rounds.includes(+f.round))
+      .map(f => +f.round);
+    roundNum = fxRounds.length ? Math.max(...fxRounds) : rounds[rounds.length - 1];
+  }
+  if(sel) sel.value = String(roundNum);
+
+  const idx = new Set(idxOf(roundDiv));
+  const matches = HISTORY.filter(m => {
+    const hi = roundTeamIdx(m.home), ai = roundTeamIdx(m.away);
+    return hi >= 0 && ai >= 0 && idx.has(hi) && idx.has(ai) && +m.round === roundNum;
+  });
+
+  const fxKey = (a, b) => `${String(a).toLowerCase()}|${String(b).toLowerCase()}`;
+  const knownKeys = new Set(matches.map(m => fxKey(m.home, m.away)));
+  const extra = (FIXTURES || []).filter(f =>
+    f.league_code === roundDiv && +f.round === roundNum && f.status !== 'finished' &&
+    !knownKeys.has(fxKey(f.home, f.away)) &&
+    roundTeamIdx(f.home) >= 0 && roundTeamIdx(f.away) >= 0);
+
+  const extraCards = extra.map(f => {
+    const hi = roundTeamIdx(f.home), ai = roundTeamIdx(f.away);
+    const H = DB.teams[hi], A = DB.teams[ai];
+    const live = f.status === 'live';
+    const time = f.kickoff_at
+      ? new Date(f.kickoff_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+      : '';
+    const score = (live && f.gh !== null && f.gh !== undefined) ? `${f.gh}:${f.ga}` : '—';
+    const {lh, la} = lambdas(hi, ai);
+    const p = matchProbs(lh, la);
+    const exp = likelyScore(lh, la);
+    return `<div class="rm-card" role="button" tabindex="0" data-home="${hi}" data-away="${ai}" data-round="${roundNum}" title="Открыть в калькуляторе">
+      <div class="rm-top">
+        <span class="rm-side">${crestImg(H,18)}<b>${esc(f.home)}</b></span>
+        <span class="rm-score">${score}</span>
+        <span class="rm-side away"><b>${esc(f.away)}</b>${crestImg(A,18)}</span>
+      </div>
+      <div class="rm-mid">
+        <div class="rm-bar">
+          <span style="width:${(p.pw*100).toFixed(1)}%;background:${esc(H.color||'#d7141a')}"></span>
+          <span style="width:${(p.pd*100).toFixed(1)}%;background:#9aa5b4"></span>
+          <span style="width:${(p.pl*100).toFixed(1)}%;background:${esc(A.color||'#0b1f3a')}"></span>
+        </div>
+        <span class="rm-exp">ожид. ${exp.gh}:${exp.ga}</span>
+        <span class="rm-probs">${(p.pw*100).toFixed(0)} · ${(p.pd*100).toFixed(0)} · ${(p.pl*100).toFixed(0)}</span>
+        <span class="rm-res ${live ? 'live' : 'soon'}">${live ? 'идёт' : time}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  let hits = 0, exact = 0;
+  const cards = matches.map(m => {
+    const hi = roundTeamIdx(m.home), ai = roundTeamIdx(m.away);
+    const H = DB.teams[hi], A = DB.teams[ai];
+    const {lh, la} = lambdas(hi, ai);
+    const p = matchProbs(lh, la);
+    const probs = [p.pw, p.pd, p.pl];
+    const pred = probs.indexOf(Math.max(...probs));
+    const fact = m.gh > m.ga ? 0 : (m.gh < m.ga ? 2 : 1);
+    const hit = pred === fact;
+    if(hit) hits++;
+    const exp = likelyScore(lh, la);
+    const exactHit = exp.gh === m.gh && exp.ga === m.ga;
+    if(exactHit) exact++;
+    const expPct = (exp.p * 100).toFixed(0);
+    return `<div class="rm-card" role="button" tabindex="0" data-home="${hi}" data-away="${ai}" data-round="${roundNum}" title="Открыть в калькуляторе">
+      <div class="rm-top">
+        <span class="rm-side">${crestImg(H,18)}<b>${esc(m.home)}</b></span>
+        <span class="rm-score">${m.gh}:${m.ga}</span>
+        <span class="rm-side away"><b>${esc(m.away)}</b>${crestImg(A,18)}</span>
+      </div>
+      <div class="rm-mid">
+        <div class="rm-bar">
+          <span style="width:${(probs[0]*100).toFixed(1)}%;background:${esc(H.color||'#d7141a')}"></span>
+          <span style="width:${(probs[1]*100).toFixed(1)}%;background:#9aa5b4"></span>
+          <span style="width:${(probs[2]*100).toFixed(1)}%;background:${esc(A.color||'#0b1f3a')}"></span>
+        </div>
+        <span class="rm-exp${exactHit ? ' exact' : ''}" title="Модель: ${expPct}% на этот счёт">ожид. ${exp.gh}:${exp.ga}</span>
+        <span class="rm-probs">${(probs[0]*100).toFixed(0)} · ${(probs[1]*100).toFixed(0)} · ${(probs[2]*100).toFixed(0)}</span>
+        <span class="rm-res ${hit ? 'ok' : 'bad'}">${hit ? '✓' : '✗'}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  const acc = matches.length ? Math.round(hits / matches.length * 100) : 0;
+  const stamp = FIXTURES_AT
+    ? `<span class="round-live">онлайн · задержка до 10 мин · обновлено ${FIXTURES_AT.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>`
+    : '';
+  if($('#roundSummary')) $('#roundSummary').innerHTML =
+    `<span>Тур <b>${roundNum}</b></span><span>Матчей <b>${matches.length}</b></span>` +
+    `<span>Исход угадан <b>${hits}</b> (${acc}%)</span>` +
+    `<span>Счёт точно <b>${exact}</b></span>` + stamp;
+
+  listEl.className = 'rm-grid';
+  listEl.innerHTML = extraCards + cards;
+  listEl.querySelectorAll('.rm-card').forEach(el => {
+    el.addEventListener('click', () => openMatchCard(el));
+    el.addEventListener('keydown', e => {
+      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openMatchCard(el); }
+    });
+  });
+
+  const i = rounds.indexOf(roundNum);
+  if($('#roundPrev')) $('#roundPrev').disabled = i <= 0;
+  if($('#roundNext')) $('#roundNext').disabled = i >= rounds.length - 1;
+}
+
+function openMatchCard(el){
+  const hi = +el.dataset.home, ai = +el.dataset.away, rnd = +el.dataset.round;
+  const m = HISTORY.find(x => +x.round === rnd &&
+    roundTeamIdx(x.home) === hi && roundTeamIdx(x.away) === ai);
+  activateTab('tab-calc');
+  if($('#calcHome')) $('#calcHome').value = String(hi);
+  if($('#calcAway')) $('#calcAway').value = String(ai);
+  if($('#ovH')) $('#ovH').value = '';
+  if($('#ovA')) $('#ovA').value = '';
+  calcRun();
+  if(typeof syncH2HFromCalc === 'function'){ syncH2HFromCalc(); renderH2H(); }
+  renderMatchInfo(m, hi, ai);
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function renderMatchInfo(m, hi, ai){
+  const box = $('#calcMatch'); if(!box) return;
+  if(!m){ box.style.display = 'none'; box.innerHTML = ''; return; }
+  const H = DB.teams[hi], A = DB.teams[ai];
+  const {lh, la} = lambdas(hi, ai);
+  const p = matchProbs(lh, la);
+  const probs = [p.pw, p.pd, p.pl];
+  const pred = probs.indexOf(Math.max(...probs));
+  const fact = m.gh > m.ga ? 0 : (m.gh < m.ga ? 2 : 1);
+  const hit = pred === fact;
+  const exp = likelyScore(lh, la);
+  const exact = exp.gh === m.gh && exp.ga === m.ga;
+  box.style.display = '';
+  box.innerHTML = `
+    <h2>Прошедший матч · тур ${m.round}</h2>
+    <div class="match-res">
+      <span class="mr-team">${crestImg(H,28)}${esc(m.home)}</span>
+      <span class="mr-score">${m.gh}:${m.ga}</span>
+      <span class="mr-team">${esc(m.away)}${crestImg(A,28)}</span>
+    </div>
+    <div class="tiles">
+      <div class="tile"><div class="t-label">Ожидаемый счёт</div><div class="t-value">${exp.gh}:${exp.ga} <small>${(exp.p*100).toFixed(0)}%</small></div></div>
+      <div class="tile"><div class="t-label">Исход по модели</div><div class="t-value">${['П1','Х','П2'][pred]} <small>${(probs[pred]*100).toFixed(0)}%</small></div></div>
+      <div class="tile"><div class="t-label">Счёт угадан</div><div class="t-value ${exact ? 'ok' : 'no'}">${exact ? 'да' : 'нет'}</div></div>
+      <div class="tile"><div class="t-label">Исход угадан</div><div class="t-value ${hit ? 'ok' : 'no'}">${hit ? 'да' : 'нет'}</div></div>
+    </div>
+    <p class="note">Это фактический результат матча; расчёт ниже — по текущим настройкам базы.</p>
+    <button class="btn alt" id="backToRounds" type="button">← Ко всем турам</button>`;
+  const back = $('#backToRounds');
+  if(back) back.onclick = () => activateTab('tab-round');
+}
+
+function stepRound(dir){  const rounds = roundSet(roundDiv);
+  const i = rounds.indexOf(roundNum);
+  const next = rounds[Math.max(0, Math.min(rounds.length - 1, i + dir))];
+  if(next !== undefined && next !== roundNum){ roundNum = next; renderRound(); }
+}
+
+if($('#roundLeague')){
+  document.querySelectorAll('#roundLeague button').forEach(b => {
+    b.addEventListener('click', () => {
+      roundDiv = b.dataset.league;
+      roundNum = null;
+      roundTouched = false;
+      document.querySelectorAll('#roundLeague button').forEach(x => x.classList.toggle('active', x === b));
+      renderRound();
+    });
+  });
+}
+if($('#roundSel')) $('#roundSel').addEventListener('change', e => { roundNum = +e.target.value; roundTouched = true; renderRound(); });
+if($('#roundPrev')) $('#roundPrev').addEventListener('click', () => stepRound(-1));
+if($('#roundNext')) $('#roundNext').addEventListener('click', () => stepRound(1));
+if($('#toRounds')) $('#toRounds').addEventListener('click', () => activateTab('tab-round'));
+
+if(typeof remoteConfigured === 'function' && remoteConfigured()){
+  loadFixtures().then(() => {
+    if(document.querySelector('.tab.active')?.id === 'tab-round') renderRound();
+  });
+  setInterval(async () => {
+    if(FIXTURES_OFF) return;
+    if(document.querySelector('.tab.active')?.id !== 'tab-round') return;
+    await loadFixtures();
+    renderRound();
+  }, 60000);
 }
 function bindValidation(){
   if($('#vAdd')) $('#vAdd').onclick = () => {
